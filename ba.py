@@ -15,19 +15,29 @@ PARAMETER BLOCKS (all float64, contiguous)
   ex  (6): rx ry rz  tx ty tz
   in  (9): fx fy cx cy  k1 k2 p1 p2 k3
 
-CALIBRATION SOURCES  (--calib-source)
---------------------------------------
+DATA SOURCES  (--calib-source)
+-------------------------------
   checkerboard   Use camera_calib.json (default, checkerboard-based)
-  moge           Use camera_calib_moge.json (MoGe-2 monocular estimate)
+  [mocap]        Future: human 3-D MoCap observations as additional BA constraints
+
+DATA LAYOUT
+-----------
+  <data-dir>/
+    cam_<id>/
+      calib/
+        camera_calib.json   intrinsics + extrinsics (checkerboard)
+        img_points.json     court 3-D ↔ 2-D correspondences
+      ba/
+        camera_calib_ba.json   output (written by this script)
 
 USAGE
 -----
   python ba.py [options]
 
-  --cameras       1 2 12          cameras to include (default: all)
-  --optimize      ex|in|both      what to refine     (default: ex)
-  --calib-source  checkerboard|moge  starting calibration (default: checkerboard)
-  --data-dir      <path>          root calib folder  (default: see DEFAULT_DATA_DIR)
+  --cameras       2 5 8 13        cameras to include (default: all found)
+  --optimize      ex|in|both      what to refine     (default: both)
+  --calib-source  checkerboard    starting calibration (default: checkerboard)
+  --data-dir      <path>          root folder with cam_*/ sub-dirs
   --suffix        _ba             output file suffix (default: _ba)
 """
 
@@ -266,8 +276,8 @@ def build_cross_view_observations(cameras: list[dict]) -> list[tuple]:
 # ──────────────────────────────────────────────────────────────────────────────
 
 CALIB_SOURCE_FILES = {
-    "checkerboard": ["camera_calib_real.json", "camera_calib.json"],
-    "moge":         ["camera_calib_moge.json"],
+    # future mocap source will extend this dict (e.g. "mocap": ["camera_calib_mocap.json"])
+    "checkerboard": ["camera_calib.json"],
 }
 
 
@@ -362,7 +372,7 @@ def load_camera(data_dir: Path, cam_id: int, val_frac: float = 0.0,
     err_init   = float(np.mean(np.linalg.norm(proj_init   - pts2d[train_idx], axis=1)))
     err_stored = float(np.mean(np.linalg.norm(proj_stored - pts2d[train_idx], axis=1)))
 
-    return {
+    cam = {
         "cam_id":   cam_id,
         "mtx":      mtx,
         "dist":     dist,
@@ -373,6 +383,11 @@ def load_camera(data_dir: Path, cam_id: int, val_frac: float = 0.0,
         "pts3d_val": pts3d[val_idx],
         "pts2d_val": pts2d[val_idx],
     }
+    if "w" in cal:
+        cam["w"] = int(cal["w"])
+    if "h" in cal:
+        cam["h"] = int(cal["h"])
+    return cam
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -681,7 +696,6 @@ def _run_ceres(cameras: list[dict], optimize: str,
 
 
 def print_physical_summary(cameras: list[dict]) -> None:
-    ORIG_W, ORIG_H = 3840, 2160
     W = 100
     print(f"\n{'─'*W}")
     print("  Physical plausibility of calibrated parameters")
@@ -692,9 +706,12 @@ def print_physical_summary(cameras: list[dict]) -> None:
         m, d = c["mtx"], c["dist"]
         fx, fy = m[0, 0], m[1, 1]
         cx, cy = m[0, 2], m[1, 2]
-        fov_h  = 2 * np.degrees(np.arctan(ORIG_W / (2 * fx)))
-        cx_pct = cx / ORIG_W * 100
-        cy_pct = cy / ORIG_H * 100
+        # Use stored image size when available; fall back to 2*principal-point estimate.
+        iw = c.get("w", round(cx * 2))
+        ih = c.get("h", round(cy * 2))
+        fov_h  = 2 * np.degrees(np.arctan(iw / (2 * fx)))
+        cx_pct = cx / iw * 100
+        cy_pct = cy / ih * 100
         R, _ = cv2.Rodrigues(c["rvec"].reshape(3, 1))
         optical_axis = R.T @ np.array([0.0, 0.0, 1.0])
         tilt   = 90.0 - np.degrees(np.arccos(np.clip(abs(optical_axis[2]), 0, 1)))
@@ -796,11 +813,10 @@ if __name__ == "__main__":
     parser.add_argument(
         "--calib-source", choices=tuple(CALIB_SOURCE_FILES), default="checkerboard",
         metavar="SOURCE",
-        help="Starting calibration: 'checkerboard' (camera_calib.json) or "
-             "'moge' (camera_calib_moge.json from moge_calib.py).",
+        help="Starting calibration source (currently only 'checkerboard').",
     )
     parser.add_argument(
-        "--data-dir", type=Path, default=Path(__file__).parent / "data" / "cameras",
+        "--data-dir", type=Path, default=Path(__file__).parent / "data" / "camera_data",
         metavar="PATH",
         help="Root folder containing cam_*/calib/ sub-folders.",
     )

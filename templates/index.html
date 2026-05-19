@@ -17,335 +17,327 @@
       font-size: 14px;
       font-weight: normal;
       color: #aaa;
-      margin-bottom: 8px;
+      margin-bottom: 10px;
       letter-spacing: 0.05em;
     }
 
-    #toolbar {
+    /* ── control bar ─────────────────────────────────────────────────── */
+    #controls {
       display: flex;
       align-items: center;
-      gap: 10px;
-      margin-bottom: 10px;
+      gap: 6px;
       flex-wrap: wrap;
+      margin-bottom: 10px;
+      padding: 7px 10px;
+      background: #181818;
+      border: 1px solid #2a2a2a;
+      border-radius: 4px;
     }
 
-    #status {
-      font-size: 12px;
-      color: #888;
-      flex: 1;
-      min-height: 16px;
+    .ctrl-group {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .ctrl-label {
+      font-size: 10px;
+      color: #666;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
     }
 
-    button {
+    select, button {
       font-family: monospace;
       font-size: 11px;
-      padding: 3px 10px;
-      border-radius: 3px;
-      border: 1px solid #555;
-      cursor: pointer;
-      background: #2a2a2a;
+      background: #222;
       color: #ccc;
+      border: 1px solid #444;
+      border-radius: 3px;
+      cursor: pointer;
     }
-    button:hover { background: #383838; }
+    select { padding: 3px 6px; }
+    button { padding: 3px 10px; }
+    button:hover { background: #2e2e2e; }
     button.active {
       background: #1a3a1a;
       border-color: #4a4;
       color: #8f8;
     }
+    button.btn-action {
+      border-color: #446;
+      color: #aaf;
+    }
+    button.btn-action:hover { background: #1a1a38; }
 
+    .sep { width: 1px; height: 18px; background: #333; margin: 0 4px; }
+
+    #status {
+      font-size: 11px;
+      color: #666;
+      flex: 1;
+      min-height: 14px;
+      margin-left: 8px;
+    }
+
+    /* ── camera grid ─────────────────────────────────────────────────── */
     #grid {
       display: grid;
-      grid-template-columns: repeat(3, {{ display_w }}px);
+      grid-template-columns: repeat(2, 1fr);
       gap: 8px;
     }
 
     .cell {
       position: relative;
-      width: {{ display_w }}px;
-      height: {{ display_h }}px;
-      background: #222;
-      border: 1px solid #333;
+      width: 100%;
+      background: #1a1a1a;
+      border: 1px solid #2a2a2a;
       cursor: crosshair;
+      overflow: hidden;
     }
 
-    .cell img {
-      width: 100%;
-      height: 100%;
-      display: block;
+    .cell-img {
+      position: absolute;
+      inset: 0;
+      width: 100%; height: 100%;
+      display: none;
+      object-fit: fill;
       user-select: none;
       pointer-events: none;
-      background: #1a1a1a;
+    }
+
+    .no-video {
+      position: absolute; inset: 0;
+      display: flex;
+      align-items: center; justify-content: center;
+      color: #333; font-size: 12px;
+      pointer-events: none;
     }
 
     .cell canvas {
-      position: absolute;
-      top: 0; left: 0;
-      width: 100%;
-      height: 100%;
+      position: absolute; top: 0; left: 0;
+      width: 100%; height: 100%;
       pointer-events: none;
     }
 
-    .label {
-      position: absolute;
-      top: 6px; left: 8px;
-      font-size: 12px;
-      color: #fff;
+    .cell-label {
+      position: absolute; top: 6px; left: 8px;
+      font-size: 12px; color: #fff;
       background: rgba(0,0,0,0.55);
-      padding: 1px 6px;
-      border-radius: 3px;
-      pointer-events: none;
-      z-index: 10;
+      padding: 1px 6px; border-radius: 3px;
+      pointer-events: none; z-index: 10;
     }
 
     .cam-btns {
-      position: absolute;
-      top: 6px; right: 8px;
-      z-index: 10;
-      pointer-events: all;
-      display: flex;
-      gap: 3px;
+      position: absolute; top: 6px; right: 8px;
+      z-index: 10; display: flex; gap: 3px;
     }
-    .cam-btns button {
-      font-size: 9px;
-      padding: 2px 5px;
+    .cam-btns button { font-size: 9px; padding: 2px 5px; }
+
+    /* ── info bar below grid ─────────────────────────────────────────── */
+    #info {
+      margin-top: 8px;
+      display: flex;
+      gap: 20px;
+      flex-wrap: wrap;
+      align-items: flex-start;
     }
 
     #world-coords {
-      font-size: 12px;
-      color: #6cf;
-      margin-top: 10px;
+      font-size: 12px; color: #6cf;
       min-height: 16px;
     }
-
-    #hint {
-      font-size: 11px;
-      color: #555;
-      margin-top: 4px;
-    }
+    #hint { font-size: 11px; color: #444; }
 
     #legend {
-      font-size: 11px;
-      color: #888;
-      margin-top: 8px;
-      display: flex;
-      gap: 16px;
-      flex-wrap: wrap;
+      display: flex; gap: 14px; flex-wrap: wrap;
+      font-size: 10px; color: #666;
     }
-    .legend-item { display: flex; align-items: center; gap: 5px; }
-    .legend-dot  { width: 8px; height: 8px; border-radius: 50%; }
+    .legend-item { display: flex; align-items: center; gap: 4px; }
+    .legend-dot  { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
 
-    /* ── MoGe comparison table ─────────────────────────────────────── */
-    #moge-panel {
-      margin-top: 16px;
-      border: 1px solid #333;
+    /* ── reproj table ────────────────────────────────────────────────── */
+    #reproj-panel {
+      margin-top: 14px;
+      border: 1px solid #272727;
       border-radius: 4px;
       overflow: hidden;
-      max-width: 700px;
+      max-width: 420px;
     }
-    #moge-panel h2 {
-      font-size: 12px;
-      font-weight: normal;
-      color: #aaa;
-      background: #1e1e1e;
-      padding: 6px 12px;
-      border-bottom: 1px solid #333;
-      letter-spacing: 0.04em;
+    #reproj-panel h2 {
+      font-size: 11px; font-weight: normal; color: #888;
+      background: #181818; padding: 5px 10px;
+      border-bottom: 1px solid #272727;
     }
-    #moge-panel table {
-      width: 100%;
-      border-collapse: collapse;
-      font-size: 11px;
+    #reproj-panel table {
+      width: 100%; border-collapse: collapse; font-size: 11px;
     }
-    #moge-panel th {
-      color: #777;
-      padding: 4px 10px;
-      text-align: right;
-      background: #181818;
-      border-bottom: 1px solid #2a2a2a;
+    #reproj-panel th {
+      color: #555; padding: 3px 10px; text-align: right;
+      background: #161616; border-bottom: 1px solid #222;
     }
-    #moge-panel th:first-child { text-align: left; }
-    #moge-panel td {
-      padding: 3px 10px;
-      text-align: right;
-      border-bottom: 1px solid #1e1e1e;
-      color: #ccc;
+    #reproj-panel th:first-child { text-align: left; }
+    #reproj-panel td {
+      padding: 3px 10px; text-align: right;
+      border-bottom: 1px solid #1c1c1c; color: #bbb;
     }
-    #moge-panel td:first-child { text-align: left; color: #888; }
-    #moge-panel tr:last-child td { border-bottom: none; font-weight: bold; color: #eee; }
+    #reproj-panel td:first-child { text-align: left; color: #666; }
+    #reproj-panel tr:last-child td { border-bottom: none; font-weight: bold; color: #ddd; }
     .cell-best  { color: #4caf50 !important; }
     .cell-worst { color: #f44 !important; }
-    .cell-na    { color: #444 !important; }
-    #moge-panel .note {
-      font-size: 10px;
-      color: #555;
-      padding: 5px 12px;
-      background: #181818;
-      border-top: 1px solid #252525;
-    }
   </style>
 </head>
 <body>
 
-<h1>Multi-camera point picker — click any view</h1>
+<h1>Multi-camera point picker</h1>
 
-<div id="toolbar">
-  <label style="color:#aaa;font-size:11px">session:
-    <select id="session-select" style="font-family:monospace;font-size:11px;background:#2a2a2a;color:#ccc;border:1px solid #555;border-radius:3px;padding:2px 6px">
-      <option value="">— pick session —</option>
+<!-- ── main control bar ──────────────────────────────────────────────────── -->
+<div id="controls">
+
+  <!-- 1. calib source -->
+  <div class="ctrl-group">
+    <span class="ctrl-label">calib</span>
+    <select id="sel-calib">
+      <option value="checkerboard">checkerboard</option>
+      {% if has_ba %}
+      <option value="ba">BA optimized</option>
+      {% endif %}
     </select>
-  </label>
-  <div id="status"></div>
-  <span style="color:#666;font-size:11px">global:</span>
-  <button id="btn-gt-all"    data-layer="gt-pts">GT pts</button>
-  <button id="btn-ba-all"    data-layer="reproj-ba">BA proj</button>
-  <button id="btn-orig-all"  data-layer="reproj-orig">pre-BA proj</button>
-  {% if has_moge %}
-  <button id="btn-moge-all"  data-layer="reproj-moge">MoGe proj</button>
-  {% endif %}
-  <button id="btn-clear" style="margin-left:10px">clear</button>
-  <span style="color:#666;font-size:11px;margin-left:16px">mode:</span>
-  <button id="btn-mode-z0"    class="active">Z=0</button>
+  </div>
+
+  <!-- 2. display mode -->
+  <div class="ctrl-group">
+    <span class="ctrl-label">display</span>
+    <select id="sel-display">
+      <option value="original">original</option>
+      <option value="rectified">rectified (on-the-fly)</option>
+    </select>
+  </div>
+
+  <div class="sep"></div>
+
+  <!-- overlay toggles -->
+  <span class="ctrl-label">show</span>
+  <button id="btn-gt-all"   data-layer="gt">GT pts</button>
+  <button id="btn-rp-all"   data-layer="reproj">reproj</button>
+
+  <div class="sep"></div>
+
+  <!-- interaction mode -->
+  <span class="ctrl-label">mode</span>
+  <button id="btn-mode-z0"  class="active">Z=0</button>
   <button id="btn-mode-tri">triangulate</button>
+
+  <div class="sep"></div>
+
+  <button id="btn-clear">clear</button>
+  <button id="btn-reload" class="btn-action" title="Reload calib + frames from disk">↻ reload</button>
+
+  <div id="status"></div>
 </div>
 
+<!-- ── camera grid ────────────────────────────────────────────────────────── -->
 <div id="grid">
   {% for cid in cameras %}
-  <div class="cell" id="cell-{{ cid }}" data-cam="{{ cid }}">
-    <img id="img-{{ cid }}" src="" alt="cam {{ cid }}" draggable="false">
-    <!-- layer 0: annotation overlays -->
-    <canvas id="canvas-gt-{{ cid }}" width="{{ display_w }}" height="{{ display_h }}" style="z-index:1"></canvas>
-    <!-- layer 1: click / projection dots -->
-    <canvas id="canvas-{{ cid }}"    width="{{ display_w }}" height="{{ display_h }}" style="z-index:2"></canvas>
-    <div class="label">cam {{ cid }}</div>
+  <div class="cell" id="cell-{{ cid }}" data-cam="{{ cid }}"
+       style="aspect-ratio: {{ cam_sizes[cid]['w'] }} / {{ cam_sizes[cid]['h'] }}">
+    <img id="img-{{ cid }}" class="cell-img" src="" alt="" draggable="false"
+         onerror="this.style.display='none'; document.getElementById('novid-{{ cid }}').style.display='flex'">
+    <div id="novid-{{ cid }}" class="no-video">no video — cam {{ cid }}</div>
+    <canvas id="canvas-gt-{{ cid }}"  style="z-index:1"></canvas>
+    <canvas id="canvas-{{ cid }}"     style="z-index:2"></canvas>
+    <div class="cell-label">cam {{ cid }}</div>
     <div class="cam-btns">
-      <button class="cam-btn" data-cam="{{ cid }}" data-layer="gt-pts">GT</button>
-      <button class="cam-btn" data-cam="{{ cid }}" data-layer="reproj-ba">BA</button>
-      <button class="cam-btn" data-cam="{{ cid }}" data-layer="reproj-orig">pre-BA</button>
-      {% if has_moge %}
-      <button class="cam-btn" data-cam="{{ cid }}" data-layer="reproj-moge">MoGe</button>
-      {% endif %}
+      <button class="cam-btn" data-cam="{{ cid }}" data-layer="gt">GT</button>
+      <button class="cam-btn" data-cam="{{ cid }}" data-layer="reproj">reproj</button>
     </div>
   </div>
   {% endfor %}
 </div>
 
-<div id="world-coords"></div>
-<div id="hint">Click: project point · Right-click: clear</div>
-
-<div id="legend">
-  <div class="legend-item">
-    <div class="legend-dot" style="background:#f0c040"></div><span>GT annotations</span>
+<!-- ── info bar ───────────────────────────────────────────────────────────── -->
+<div id="info">
+  <div>
+    <div id="world-coords"></div>
+    <div id="hint" style="margin-top:4px">Click: project to Z=0 · Right-click: clear</div>
   </div>
-  <div class="legend-item">
-    <div class="legend-dot" style="background:#00e5ff"></div><span>BA projection + error</span>
-  </div>
-  <div class="legend-item">
-    <div class="legend-dot" style="background:#ff8c00"></div><span>pre-BA projection + error</span>
-  </div>
-  {% if has_moge %}
-  <div class="legend-item">
-    <div class="legend-dot" style="background:#d070ff"></div><span>MoGe projection + error</span>
-  </div>
-  {% endif %}
-  <div class="legend-item">
-    <div class="legend-dot" style="background:#00ff55"></div><span>clicked point</span>
-  </div>
-  <div class="legend-item">
-    <div class="legend-dot" style="background:#ff3333"></div><span>projected point</span>
-  </div>
-  <div class="legend-item">
-    <div class="legend-dot" style="background:#ffdd00"></div><span>pending ray (triangulate)</span>
+  <div id="legend">
+    <div class="legend-item"><div class="legend-dot" style="background:#f0c040"></div>GT annotations</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#00e5ff"></div>reprojection + error</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#00ff55"></div>clicked point</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#ff3333"></div>projected point</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#ffdd00"></div>pending ray</div>
   </div>
 </div>
 
-<!-- ── MoGe comparison table ─────────────────────────────────────────────── -->
-{% if has_moge %}
-<div id="moge-panel">
-  <h2>Reprojection error comparison  (mean px over GT keypoints)</h2>
+<!-- ── reproj error table ─────────────────────────────────────────────────── -->
+<div id="reproj-panel">
+  <h2 id="reproj-title">Reprojection error (mean px, original pixel space)</h2>
   <table>
     <thead>
       <tr>
         <th>camera</th>
-        <th>pre-BA (checkerboard)</th>
-        <th>MoGe-2 estimate</th>
-        <th>after BA</th>
+        <th id="th-cb">checkerboard</th>
+        {% if has_ba %}<th id="th-ba">BA optimized</th>{% endif %}
       </tr>
     </thead>
-    <tbody id="reproj-tbody">
-      {% set mr = mean_reproj %}
-      {% set all_cams = mr.ba.keys() | list %}
-      {% for cid in cameras %}
-        {% set orig_v = mr.orig.get(cid|string) %}
-        {% set moge_v = mr.moge.get(cid|string) %}
-        {% set ba_v   = mr.ba.get(cid|string) %}
-        <tr>
-          <td>cam {{ cid }}</td>
-          <td {% if orig_v is not none and (moge_v is none or orig_v <= moge_v) and (ba_v is none or orig_v <= ba_v) %}class="cell-best"
-              {% elif orig_v is not none and (moge_v is not none and orig_v >= moge_v) and (ba_v is not none and orig_v >= ba_v) %}class="cell-worst"{% endif %}>
-            {{ "%.2f"|format(orig_v) if orig_v is not none else "—" }}
-          </td>
-          <td {% if moge_v is not none and (orig_v is none or moge_v <= orig_v) and (ba_v is none or moge_v <= ba_v) %}class="cell-best"
-              {% elif moge_v is not none and (orig_v is not none and moge_v >= orig_v) and (ba_v is not none and moge_v >= ba_v) %}class="cell-worst"{% endif %}>
-            {{ "%.2f"|format(moge_v) if moge_v is not none else "—" }}
-          </td>
-          <td {% if ba_v is not none and (orig_v is none or ba_v <= orig_v) and (moge_v is none or ba_v <= moge_v) %}class="cell-best"
-              {% elif ba_v is not none and (orig_v is not none and ba_v >= orig_v) and (moge_v is not none and ba_v >= moge_v) %}class="cell-worst"{% endif %}>
-            {{ "%.2f"|format(ba_v) if ba_v is not none else "—" }}
-          </td>
-        </tr>
-      {% endfor %}
-      {% set orig_vals = mr.orig.values() | list %}
-      {% set moge_vals = mr.moge.values() | list %}
-      {% set ba_vals   = mr.ba.values()   | list %}
-      {% set orig_mean = (orig_vals | sum / orig_vals | length) if orig_vals else none %}
-      {% set moge_mean = (moge_vals | sum / moge_vals | length) if moge_vals else none %}
-      {% set ba_mean   = (ba_vals   | sum / ba_vals   | length) if ba_vals   else none %}
-      <tr>
-        <td>GLOBAL mean</td>
-        <td {% if orig_mean is not none and (moge_mean is none or orig_mean <= moge_mean) and (ba_mean is none or orig_mean <= ba_mean) %}class="cell-best"
-            {% elif orig_mean is not none and (moge_mean is not none and orig_mean >= moge_mean) and (ba_mean is not none and orig_mean >= ba_mean) %}class="cell-worst"{% endif %}>
-          {{ "%.2f"|format(orig_mean) if orig_mean is not none else "—" }}
-        </td>
-        <td {% if moge_mean is not none and (orig_mean is none or moge_mean <= orig_mean) and (ba_mean is none or moge_mean <= ba_mean) %}class="cell-best"
-            {% elif moge_mean is not none and (orig_mean is not none and moge_mean >= orig_mean) and (ba_mean is not none and moge_mean >= ba_mean) %}class="cell-worst"{% endif %}>
-          {{ "%.2f"|format(moge_mean) if moge_mean is not none else "—" }}
-        </td>
-        <td {% if ba_mean is not none and (orig_mean is none or ba_mean <= orig_mean) and (moge_mean is none or ba_mean <= moge_mean) %}class="cell-best"
-            {% elif ba_mean is not none and (orig_mean is not none and ba_mean >= orig_mean) and (moge_mean is not none and ba_mean >= moge_mean) %}class="cell-worst"{% endif %}>
-          {{ "%.2f"|format(ba_mean) if ba_mean is not none else "—" }}
-        </td>
-      </tr>
-    </tbody>
+    <tbody id="reproj-tbody"></tbody>
   </table>
-  <div class="note">
-    Green = lowest error · Red = highest error · MoGe uses zero distortion + solvePnP extrinsics from monocular depth intrinsics
-  </div>
 </div>
-{% endif %}
 
 <script>
-const DISPLAY_W = {{ display_w }};
-const DISPLAY_H = {{ display_h }};
+// Per-camera image dimensions: { cam_id: {w, h} }
+const CAM_SIZES = {{ cam_sizes | tojson }};
+const CAMERAS   = {{ cameras | tojson }};
+const HAS_BA    = {{ has_ba | tojson }};
 
-const GT          = {{ ground_truth | tojson }};
-const REPROJ_BA   = {{ reproj_ba    | tojson }};
-const REPROJ_ORIG = {{ reproj_orig  | tojson }};
-const REPROJ_MOGE = {{ reproj_moge  | tojson }};
-const HAS_MOGE    = {{ has_moge | tojson }};
+// All overlay x/y values are normalised [0,1] relative to each camera's own resolution.
+let OVERLAYS = {{ overlays | tojson }};
 
-const CAMERAS = {{ cameras | tojson }};
+// ── current selections ────────────────────────────────────────────────────────
+let currentCalib   = "checkerboard";
+let currentDisplay = "original";
 
 // ── visibility state ──────────────────────────────────────────────────────────
 const vis = {};
-for (const cid of CAMERAS) {
-  vis[cid] = { "gt-pts": false, "reproj-ba": false, "reproj-orig": false, "reproj-moge": false };
+for (const cid of CAMERAS) vis[cid] = { gt: false, reproj: false };
+
+// ── canvas helpers ────────────────────────────────────────────────────────────
+// Each canvas fills its cell via CSS (width:100% height:100%).
+// Its drawing buffer is set to match the cell's CSS pixel size on every draw
+// so that 1 drawing unit == 1 CSS pixel, keeping dot positions correct.
+
+function syncCanvasSize(canvas) {
+  const w = canvas.offsetWidth;
+  const h = canvas.offsetHeight;
+  if (canvas.width !== w || canvas.height !== h) {
+    canvas.width  = w;
+    canvas.height = h;
+  }
+  return { w, h };
 }
 
-// ── canvas accessors ──────────────────────────────────────────────────────────
-function getCtx(camId)   { return document.getElementById(`canvas-${camId}`).getContext("2d"); }
-function getGtCtx(camId) { return document.getElementById(`canvas-gt-${camId}`).getContext("2d"); }
+function getCtx(cid) {
+  const c = document.getElementById(`canvas-${cid}`);
+  syncCanvasSize(c);
+  return c.getContext("2d");
+}
+function getGtCtx(cid) {
+  const c = document.getElementById(`canvas-gt-${cid}`);
+  syncCanvasSize(c);
+  return c.getContext("2d");
+}
 
-// ── drawing helpers ───────────────────────────────────────────────────────────
+// Convert normalised [0,1] coords to CSS pixels for a given canvas element.
+function normToCSS(nx, ny, canvas) {
+  return [nx * canvas.width, ny * canvas.height];
+}
+
+// Convert a CSS-pixel click (relative to cell) to normalised [0,1].
+function cssToNorm(cx, cy, cell) {
+  return [cx / cell.offsetWidth, cy / cell.offsetHeight];
+}
+
+// ── drawing ───────────────────────────────────────────────────────────────────
 function drawDot(ctx, x, y, color, r = 5) {
   ctx.beginPath();
   ctx.arc(x, y, r, 0, Math.PI * 2);
@@ -356,80 +348,142 @@ function drawDot(ctx, x, y, color, r = 5) {
   ctx.stroke();
 }
 
-function drawAnnotatedDot(ctx, pt, color, r = 4) {
-  drawDot(ctx, pt.x, pt.y, color, r);
+function drawAnnotatedDot(ctx, nx, ny, color, label, r = 4) {
+  const [x, y] = normToCSS(nx, ny, ctx.canvas);
+  drawDot(ctx, x, y, color, r);
   ctx.fillStyle = color;
   ctx.font = "10px monospace";
-  const text = pt.err !== undefined ? `${pt.label} ${pt.err}px` : pt.label;
-  ctx.fillText(text, pt.x + r + 2, pt.y - r - 1);
+  ctx.fillText(label, x + r + 2, y - r - 1);
+}
+
+// ── overlay data accessor ─────────────────────────────────────────────────────
+function getPts(layer, cid) {
+  return OVERLAYS[currentCalib]?.[String(cid)]?.[layer][currentDisplay] || [];
 }
 
 // ── overlay redraw ────────────────────────────────────────────────────────────
 function redrawOverlay(cid) {
   const ctx = getGtCtx(cid);
-  ctx.clearRect(0, 0, DISPLAY_W, DISPLAY_H);
-
-  if (vis[cid]["gt-pts"]) {
-    const pts = GT[String(cid)] || [];
-    for (const pt of pts) drawAnnotatedDot(ctx, pt, "#f0c040");
-  }
-
-  if (vis[cid]["reproj-ba"]) {
-    const pts = REPROJ_BA[String(cid)] || [];
-    for (const pt of pts) drawAnnotatedDot(ctx, pt, "#00e5ff");
-  }
-
-  if (vis[cid]["reproj-orig"]) {
-    const pts = REPROJ_ORIG[String(cid)] || [];
-    for (const pt of pts) drawAnnotatedDot(ctx, pt, "#ff8c00");
-  }
-
-  if (HAS_MOGE && vis[cid]["reproj-moge"]) {
-    const pts = REPROJ_MOGE[String(cid)] || [];
-    for (const pt of pts) drawAnnotatedDot(ctx, pt, "#d070ff");
-  }
+  ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+  if (vis[cid].gt)
+    for (const pt of getPts("gt", cid))
+      drawAnnotatedDot(ctx, pt.x, pt.y, "#f0c040", pt.label);
+  if (vis[cid].reproj)
+    for (const pt of getPts("reproj", cid))
+      drawAnnotatedDot(ctx, pt.x, pt.y, "#00e5ff",
+        pt.err !== undefined ? `${pt.label} ${pt.err}px` : pt.label);
 }
 
-function redrawAllOverlays() {
-  for (const cid of CAMERAS) redrawOverlay(cid);
+function redrawAllOverlays() { for (const cid of CAMERAS) redrawOverlay(cid); }
+
+// ── reproj table ──────────────────────────────────────────────────────────────
+function buildReprojTable() {
+  const tbody = document.getElementById("reproj-tbody");
+  tbody.innerHTML = "";
+
+  const sources = HAS_BA ? ["checkerboard", "ba"] : ["checkerboard"];
+
+  const means = {};
+  for (const src of sources) {
+    let sum = 0, n = 0;
+    for (const cid of CAMERAS) {
+      const v = OVERLAYS[src]?.[String(cid)]?.mean_err;
+      if (v != null) { sum += v; n++; }
+    }
+    means[src] = n ? sum / n : null;
+  }
+
+  function cls(val, others) {
+    if (val == null) return "";
+    const min = Math.min(...others.filter(v => v != null));
+    const max = Math.max(...others.filter(v => v != null));
+    if (val === min && min !== max) return "cell-best";
+    if (val === max && min !== max) return "cell-worst";
+    return "";
+  }
+
+  for (const cid of CAMERAS) {
+    const vals = sources.map(s => OVERLAYS[s]?.[String(cid)]?.mean_err ?? null);
+    const tr = document.createElement("tr");
+    let html = `<td>cam ${cid}</td>`;
+    for (let i = 0; i < sources.length; i++) {
+      const v = vals[i];
+      html += `<td class="${cls(v, vals)}">${v != null ? v.toFixed(2) : "—"}</td>`;
+    }
+    tr.innerHTML = html;
+    tbody.appendChild(tr);
+  }
+
+  const tr = document.createElement("tr");
+  const mvals = sources.map(s => means[s]);
+  let html = `<td>GLOBAL mean</td>`;
+  for (let i = 0; i < sources.length; i++) {
+    const v = mvals[i];
+    html += `<td class="${cls(v, mvals)}">${v != null ? v.toFixed(2) : "—"}</td>`;
+  }
+  tr.innerHTML = html;
+  tbody.appendChild(tr);
 }
 
 // ── button sync ───────────────────────────────────────────────────────────────
-function syncAllButtons() {
+function syncButtons() {
   document.querySelectorAll(".cam-btn").forEach(btn => {
     btn.classList.toggle("active", vis[parseInt(btn.dataset.cam)][btn.dataset.layer]);
   });
-  const globalBtns = [
-    ["btn-gt-all",   "gt-pts"],
-    ["btn-ba-all",   "reproj-ba"],
-    ["btn-orig-all", "reproj-orig"],
-  ];
-  if (HAS_MOGE) globalBtns.push(["btn-moge-all", "reproj-moge"]);
-  for (const [btnId, layer] of globalBtns) {
-    const el = document.getElementById(btnId);
-    if (el) el.classList.toggle("active", CAMERAS.every(cid => vis[cid][layer]));
+  for (const [id, layer] of [["btn-gt-all","gt"],["btn-rp-all","reproj"]]) {
+    document.getElementById(id)?.classList.toggle(
+      "active", CAMERAS.every(cid => vis[cid][layer])
+    );
   }
 }
 
-// ── toggle helpers ────────────────────────────────────────────────────────────
 function toggleLayer(cid, layer) {
   vis[cid][layer] = !vis[cid][layer];
   redrawOverlay(cid);
-  syncAllButtons();
+  syncButtons();
 }
 
 function toggleLayerAll(layer) {
   const allOn = CAMERAS.every(cid => vis[cid][layer]);
   for (const cid of CAMERAS) vis[cid][layer] = !allOn;
   redrawAllOverlays();
-  syncAllButtons();
+  syncButtons();
 }
 
-// ── mode state ────────────────────────────────────────────────────────────────
-let mode = "z0";   // "z0" | "tri"
+// ── calib / display selectors ─────────────────────────────────────────────────
+function applySelections() {
+  currentCalib   = document.getElementById("sel-calib").value;
+  currentDisplay = document.getElementById("sel-display").value;
+  loadFrames();
+  redrawAllOverlays();
+  clearAllInteraction();
+}
 
-// pending clicks in triangulate mode: [{cam_id, x, y}, ...]
-let triClicks = [];
+document.getElementById("sel-calib").addEventListener("change",   applySelections);
+document.getElementById("sel-display").addEventListener("change", applySelections);
+
+// ── frame loading ─────────────────────────────────────────────────────────────
+function frameUrl(cid, cacheBust = "") {
+  const url = `/frame/${currentCalib}/${currentDisplay}/${cid}`;
+  return cacheBust ? url + `?t=${cacheBust}` : url;
+}
+
+function loadFrames(cacheBust = "") {
+  for (const cid of CAMERAS) {
+    const img   = document.getElementById(`img-${cid}`);
+    const noVid = document.getElementById(`novid-${cid}`);
+    noVid.textContent = "loading…";
+    noVid.style.display = "flex";
+    img.style.display = "none";
+    img.onload  = () => { img.style.display = "block"; noVid.style.display = "none"; };
+    img.onerror = () => { img.style.display = "none";  noVid.textContent = `no video — cam ${cid}`; };
+    img.src = frameUrl(cid, cacheBust);
+  }
+}
+
+// ── mode ──────────────────────────────────────────────────────────────────────
+let mode = "z0";
+let triClicks = [];  // each: { cam_id, nx, ny }
 
 function setMode(m) {
   mode = m;
@@ -438,15 +492,16 @@ function setMode(m) {
   clearAllInteraction();
   document.getElementById("hint").textContent = m === "z0"
     ? "Click: project to Z=0 · Right-click: clear"
-    : "Triangulate: click same point in ≥2 cameras · Right-click: clear";
+    : "Click same point in ≥2 cameras to triangulate · Right-click: clear";
 }
 
 document.getElementById("btn-mode-z0").addEventListener("click",  () => setMode("z0"));
 document.getElementById("btn-mode-tri").addEventListener("click", () => setMode("tri"));
 
 // ── interaction canvas ────────────────────────────────────────────────────────
-function clearInteraction(camId) {
-  getCtx(camId).clearRect(0, 0, DISPLAY_W, DISPLAY_H);
+function clearInteraction(cid) {
+  const ctx = getCtx(cid);
+  ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
 }
 
 function clearAllInteraction() {
@@ -456,148 +511,137 @@ function clearAllInteraction() {
   document.getElementById("status").textContent = "";
 }
 
-// ── Z=0 projection ────────────────────────────────────────────────────────────
-async function handleZ0Click(camId, x, y) {
-  document.getElementById("status").textContent = "projecting…";
-  clearAllInteraction();
-  drawDot(getCtx(camId), x, y, "#00ff55");
-
-  let data;
-  try {
-    const resp = await fetch("/project", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ cam_id: camId, x, y }),
-    });
-    data = await resp.json();
-  } catch (err) {
-    document.getElementById("status").textContent = `Error: ${err}`;
-    return;
-  }
-  if (data.error) {
-    document.getElementById("status").textContent = `Server: ${data.error}`;
-    return;
-  }
-  for (const [cidStr, pt] of Object.entries(data.projections)) {
-    if (pt !== null) drawDot(getCtx(parseInt(cidStr)), pt[0], pt[1], "#ff3333");
-  }
-  const [wx, wy, wz] = data.world;
-  document.getElementById("world-coords").textContent =
-    `World (Z=0): X=${wx} m   Y=${wy} m   Z=${wz} m`;
-  document.getElementById("status").textContent =
-    `Clicked cam ${camId} at pixel (${Math.round(x)}, ${Math.round(y)})`;
+// Draw a dot on the interaction canvas using normalised coords.
+function drawNormDot(cid, nx, ny, color, r = 5) {
+  const canvas = document.getElementById(`canvas-${cid}`);
+  syncCanvasSize(canvas);
+  const ctx = canvas.getContext("2d");
+  const [x, y] = normToCSS(nx, ny, canvas);
+  drawDot(ctx, x, y, color, r);
 }
 
-// ── triangulation ─────────────────────────────────────────────────────────────
-async function handleTriClick(camId, x, y) {
-  // reject a second click on the same camera
+// ── Z=0 click ─────────────────────────────────────────────────────────────────
+async function handleZ0Click(camId, nx, ny) {
+  setStatus("projecting…");
+  clearAllInteraction();
+  drawNormDot(camId, nx, ny, "#00ff55");
+
+  const resp = await fetchJSON("/project", {
+    cam_id: camId, nx, ny,
+    calib: currentCalib, rectified: currentDisplay === "rectified",
+  });
+  if (!resp) return;
+
+  for (const [cidStr, pt] of Object.entries(resp.projections)) {
+    if (pt) drawNormDot(parseInt(cidStr), pt[0], pt[1], "#ff3333");
+  }
+  document.getElementById("world-coords").textContent =
+    `World (Z=0): X=${resp.world[0]} m   Y=${resp.world[1]} m   Z=${resp.world[2]} m`;
+  setStatus(`Clicked cam ${camId}`);
+}
+
+// ── triangulate click ─────────────────────────────────────────────────────────
+async function handleTriClick(camId, nx, ny) {
   if (triClicks.some(c => c.cam_id === camId)) {
-    document.getElementById("status").textContent =
-      `cam ${camId} already registered — click a different camera`;
+    setStatus(`cam ${camId} already registered — click a different camera`);
     return;
   }
-
-  triClicks.push({ cam_id: camId, x, y });
-  drawDot(getCtx(camId), x, y, "#ffdd00");
-  document.getElementById("status").textContent =
-    `${triClicks.length} ray(s) captured (cam ${triClicks.map(c=>c.cam_id).join(", ")}) — click another camera or the same point again to triangulate`;
+  triClicks.push({ cam_id: camId, nx, ny });
+  drawNormDot(camId, nx, ny, "#ffdd00");
+  setStatus(`${triClicks.length} ray(s): cam ${triClicks.map(c=>c.cam_id).join(", ")} — click another to triangulate`);
 
   if (triClicks.length < 2) return;
 
-  // have ≥2 rays — triangulate
-  document.getElementById("status").textContent = "triangulating…";
-  let data;
-  try {
-    const resp = await fetch("/triangulate", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ clicks: triClicks }),
-    });
-    data = await resp.json();
-  } catch (err) {
-    document.getElementById("status").textContent = `Error: ${err}`;
-    return;
-  }
-  if (data.error) {
-    document.getElementById("status").textContent = `Server: ${data.error}`;
-    return;
-  }
+  setStatus("triangulating…");
+  const resp = await fetchJSON("/triangulate", {
+    clicks: triClicks,
+    calib: currentCalib, rectified: currentDisplay === "rectified",
+  });
+  if (!resp) return;
 
-  // draw reprojections on all cameras
-  for (const [cidStr, pt] of Object.entries(data.projections)) {
-    if (pt !== null) {
+  for (const [cidStr, pt] of Object.entries(resp.projections)) {
+    if (pt) {
       const cid = parseInt(cidStr);
-      const isPending = triClicks.some(c => c.cam_id === cid);
-      drawDot(getCtx(cid), pt[0], pt[1], isPending ? "#00ff55" : "#ff3333");
+      drawNormDot(cid, pt[0], pt[1],
+        triClicks.some(c => c.cam_id === cid) ? "#00ff55" : "#ff3333");
     }
   }
-
-  const [wx, wy, wz] = data.world;
   document.getElementById("world-coords").textContent =
-    `3D triangulated: X=${wx} m   Y=${wy} m   Z=${wz} m   (from ${triClicks.length} cameras)`;
-  document.getElementById("status").textContent =
-    `Triangulated from cam ${triClicks.map(c=>c.cam_id).join(", ")} — click more cameras to add rays, right-click to clear`;
+    `3D triangulated: X=${resp.world[0]} m   Y=${resp.world[1]} m   Z=${resp.world[2]} m   (${triClicks.length} cams)`;
+  setStatus(`From cam ${triClicks.map(c=>c.cam_id).join(", ")} — right-click to clear`);
 }
 
-// ── click handler ─────────────────────────────────────────────────────────────
+// ── helpers ───────────────────────────────────────────────────────────────────
+function setStatus(msg) { document.getElementById("status").textContent = msg; }
+
+async function fetchJSON(url, body) {
+  try {
+    const resp = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const data = await resp.json();
+    if (data.error) { setStatus(`Error: ${data.error}`); return null; }
+    return data;
+  } catch (err) {
+    setStatus(`Network error: ${err}`);
+    return null;
+  }
+}
+
+// ── event wiring ──────────────────────────────────────────────────────────────
 document.querySelectorAll(".cell").forEach(cell => {
-  cell.addEventListener("click", async (e) => {
+  cell.addEventListener("click", async e => {
     if (e.target.closest(".cam-btns")) return;
     const rect  = cell.getBoundingClientRect();
-    const x     = e.clientX - rect.left;
-    const y     = e.clientY - rect.top;
     const camId = parseInt(cell.dataset.cam);
-    if (mode === "z0") await handleZ0Click(camId, x, y);
-    else               await handleTriClick(camId, x, y);
+    const [nx, ny] = cssToNorm(e.clientX - rect.left, e.clientY - rect.top, cell);
+    if (mode === "z0") await handleZ0Click(camId, nx, ny);
+    else               await handleTriClick(camId, nx, ny);
   });
-
-  cell.addEventListener("contextmenu", (e) => {
-    e.preventDefault();
-    clearAllInteraction();
-  });
+  cell.addEventListener("contextmenu", e => { e.preventDefault(); clearAllInteraction(); });
 });
 
-// ── per-camera layer buttons ──────────────────────────────────────────────────
 document.querySelectorAll(".cam-btn").forEach(btn => {
-  btn.addEventListener("click", (e) => {
+  btn.addEventListener("click", e => {
     e.stopPropagation();
     toggleLayer(parseInt(btn.dataset.cam), btn.dataset.layer);
   });
 });
 
-// ── global layer buttons ──────────────────────────────────────────────────────
-document.getElementById("btn-gt-all").addEventListener("click",   () => toggleLayerAll("gt-pts"));
-document.getElementById("btn-ba-all").addEventListener("click",   () => toggleLayerAll("reproj-ba"));
-document.getElementById("btn-orig-all").addEventListener("click", () => toggleLayerAll("reproj-orig"));
-if (HAS_MOGE) {
-  document.getElementById("btn-moge-all").addEventListener("click", () => toggleLayerAll("reproj-moge"));
-}
-document.getElementById("btn-clear").addEventListener("click", clearAllInteraction);
+document.getElementById("btn-gt-all").addEventListener("click",  () => toggleLayerAll("gt"));
+document.getElementById("btn-rp-all").addEventListener("click",  () => toggleLayerAll("reproj"));
+document.getElementById("btn-clear").addEventListener("click",   clearAllInteraction);
 
-// ── session picker ────────────────────────────────────────────────────────────
-function loadSession(session) {
-  if (!session) return;
-  for (const cid of CAMERAS) {
-    const img = document.getElementById(`img-${cid}`);
-    if (img) img.src = `/frame/${session}/${cid}`;
+// ── reload ────────────────────────────────────────────────────────────────────
+document.getElementById("btn-reload").addEventListener("click", async () => {
+  const btn = document.getElementById("btn-reload");
+  btn.textContent = "↻ reloading…";
+  btn.disabled = true;
+  setStatus("reloading…");
+  try {
+    const resp = await fetch("/reload");
+    const data = await resp.json();
+    OVERLAYS = data.overlays;
+    redrawAllOverlays();
+    buildReprojTable();
+    loadFrames(Date.now());
+    setStatus(`Reloaded at ${new Date().toLocaleTimeString()}`);
+  } catch (err) {
+    setStatus(`Reload error: ${err}`);
+  } finally {
+    btn.textContent = "↻ reload";
+    btn.disabled = false;
   }
-  clearAllInteraction();
-  document.getElementById("status").textContent = `Session: ${session}`;
-}
+});
 
-(async () => {
-  const resp = await fetch("/sessions");
-  const sessions = await resp.json();
-  const sel = document.getElementById("session-select");
-  for (const s of sessions) {
-    const opt = document.createElement("option");
-    opt.value = s; opt.textContent = s;
-    sel.appendChild(opt);
-  }
-  if (sessions.length > 0) { sel.value = sessions[0]; loadSession(sessions[0]); }
-})();
+// Redraw overlays when the window is resized (canvas CSS size changes).
+window.addEventListener("resize", redrawAllOverlays);
 
-document.getElementById("session-select").addEventListener("change", e => loadSession(e.target.value));
+// ── init ──────────────────────────────────────────────────────────────────────
+buildReprojTable();
+loadFrames();
 </script>
 </body>
 </html>
