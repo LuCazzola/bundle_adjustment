@@ -1,0 +1,794 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Court-point editor</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: #101214;
+      color: #e8eaed;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 13px;
+    }
+    button, select, input { font: inherit; }
+    button, select {
+      color: #e8eaed;
+      background: #202428;
+      border: 1px solid #3a4148;
+      border-radius: 4px;
+      padding: 6px 9px;
+    }
+    button { cursor: pointer; }
+    button:hover { background: #2a3035; }
+    button:disabled { cursor: default; opacity: 0.45; }
+    header {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 10px 14px;
+      border-bottom: 1px solid #2c3136;
+      background: #171a1d;
+      flex-wrap: wrap;
+    }
+    h1 { margin: 0; font-size: 15px; font-weight: 600; }
+    .muted { color: #929aa2; }
+    .spacer { flex: 1; }
+    #status { min-width: 220px; text-align: right; color: #929aa2; }
+    #status.error { color: #ff7b72; }
+    #status.saved { color: #7ee787; }
+    main {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 320px;
+      height: calc(100vh - 55px);
+    }
+    #viewer-column {
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      padding: 12px;
+      gap: 10px;
+    }
+    #viewer {
+      position: relative;
+      flex: 1;
+      min-height: 300px;
+      background: #08090a;
+      border: 1px solid #30363d;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: crosshair;
+    }
+    #viewer.panning { cursor: grabbing; }
+    #image-layer {
+      position: relative;
+      display: inline-block;
+      max-width: 100%;
+      max-height: 100%;
+      line-height: 0;
+      transform-origin: 0 0;
+      will-change: transform;
+    }
+    #frame {
+      position: relative;
+      z-index: 1;
+      display: block;
+      max-width: 100%;
+      max-height: 100%;
+      user-select: none;
+      pointer-events: none;
+    }
+    #overlay {
+      position: absolute;
+      inset: 0;
+      z-index: 2;
+      display: block;
+      overflow: visible;
+      pointer-events: none;
+    }
+    #frame-controls {
+      display: grid;
+      grid-template-columns: auto minmax(160px, 1fr) auto auto auto;
+      gap: 8px;
+      align-items: center;
+    }
+    #frame-slider { width: 100%; }
+    #zoom-controls {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+    #zoom-level {
+      display: inline-block;
+      width: 48px;
+      text-align: center;
+      color: #929aa2;
+    }
+    #sidebar {
+      border-left: 1px solid #2c3136;
+      background: #15181b;
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+      gap: 10px;
+    }
+    #selection {
+      padding: 9px;
+      border: 1px solid #30363d;
+      border-radius: 4px;
+      background: #111417;
+      min-height: 58px;
+      line-height: 1.5;
+    }
+    #point-list {
+      overflow: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      padding-right: 3px;
+    }
+    #catalog-editor {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr)) auto;
+      gap: 5px;
+    }
+    #catalog-editor input {
+      width: 100%;
+      min-width: 0;
+      color: #e8eaed;
+      background: #111417;
+      border: 1px solid #3a4148;
+      border-radius: 4px;
+      padding: 6px;
+    }
+    #catalog-actions {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 5px;
+    }
+    #delete-catalog { border-color: #8b3a3a; color: #ffb4ad; }
+    .point-row {
+      display: grid;
+      grid-template-columns: 22px 1fr auto;
+      align-items: center;
+      gap: 7px;
+      width: 100%;
+      text-align: left;
+      padding: 7px;
+      border: 1px solid #292f35;
+      border-radius: 4px;
+      background: #1b1f23;
+      color: #d8dee4;
+    }
+    .point-row.selected {
+      border-color: #d29922;
+      background: #332a12;
+    }
+    .point-row.placed .dot { background: #39d0d8; }
+    .dot {
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      background: #4b535b;
+      justify-self: center;
+    }
+    .pixel { color: #8b949e; font-size: 11px; }
+    #actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 7px;
+    }
+    #save { border-color: #238636; background: #1d5228; }
+    #save:hover { background: #246b33; }
+    #remove { border-color: #8b3a3a; }
+    #hint {
+      color: #8b949e;
+      line-height: 1.5;
+      padding-bottom: 4px;
+    }
+    @media (max-width: 900px) {
+      main { grid-template-columns: 1fr; height: auto; }
+      #viewer-column { height: 65vh; }
+      #sidebar { border-left: 0; border-top: 1px solid #2c3136; max-height: 55vh; }
+    }
+  </style>
+</head>
+<body>
+<header>
+  <h1>Court-point editor</h1>
+  <span class="muted">{{ video_id }}</span>
+  <label>
+    camera
+    <select id="camera-select">
+      {% for camera in cameras %}
+      <option value="{{ camera.id }}">out{{ camera.id }}</option>
+      {% endfor %}
+    </select>
+  </label>
+  <span id="camera-meta" class="muted"></span>
+  <span class="spacer"></span>
+  <span id="status">Loading…</span>
+</header>
+
+<main>
+  <section id="viewer-column">
+    <div id="viewer">
+      <div id="image-layer">
+        <img id="frame" alt="Selected video frame">
+        <svg id="overlay" aria-hidden="true"></svg>
+      </div>
+    </div>
+    <div id="frame-controls">
+      <span>frame <strong id="frame-number">0</strong></span>
+      <input id="frame-slider" type="range" min="0" value="0">
+      <button id="previous-frame" title="Previous frame">−1</button>
+      <button id="next-frame" title="Next frame">+1</button>
+      <button id="reload-frame">reload</button>
+    </div>
+    <div id="zoom-controls">
+      <span class="muted">zoom</span>
+      <button id="zoom-out" title="Zoom out">−</button>
+      <span id="zoom-level">100%</span>
+      <button id="zoom-in" title="Zoom in">+</button>
+      <button id="zoom-reset" title="Reset zoom and pan">fit</button>
+      <span class="muted">wheel to zoom • middle/right drag or Space + drag to pan</span>
+    </div>
+  </section>
+
+  <aside id="sidebar">
+    <div id="selection">
+      <strong>Selected point</strong><br>
+      <span id="selected-label" class="muted">Choose a 3D court point.</span>
+    </div>
+    <div id="hint">
+      Select a 3D point, then click its location in the image. Selecting an
+      existing point and clicking again moves it. Frame changes do not alter
+      coordinates. Use the mouse wheel to zoom around the cursor.
+    </div>
+    <form id="catalog-editor">
+      <input id="catalog-x" type="number" step="any" placeholder="X" required>
+      <input id="catalog-y" type="number" step="any" placeholder="Y" required>
+      <input id="catalog-z" type="number" step="any" placeholder="Z" value="0" required>
+      <button type="submit">add 3D point</button>
+    </form>
+    <div id="catalog-actions">
+      <button id="delete-catalog" type="button">delete selected from catalog</button>
+    </div>
+    <div id="point-list"></div>
+    <div id="actions">
+      <button id="remove">remove selected</button>
+      <button id="undo">undo</button>
+      <button id="reset">discard changes</button>
+      <button id="save">save camera</button>
+    </div>
+  </aside>
+</main>
+
+<script>
+const CAMERAS = {{ cameras | tojson }};
+let CATALOG = {{ point_catalog | tojson }};
+const cameraById = new Map(CAMERAS.map(camera => [camera.id, camera]));
+
+const cameraSelect = document.getElementById("camera-select");
+const cameraMeta = document.getElementById("camera-meta");
+const statusEl = document.getElementById("status");
+const frameImage = document.getElementById("frame");
+const viewer = document.getElementById("viewer");
+const imageLayer = document.getElementById("image-layer");
+const overlay = document.getElementById("overlay");
+const frameSlider = document.getElementById("frame-slider");
+const frameNumber = document.getElementById("frame-number");
+const pointList = document.getElementById("point-list");
+const selectedLabel = document.getElementById("selected-label");
+const zoomLevel = document.getElementById("zoom-level");
+const catalogForm = document.getElementById("catalog-editor");
+
+let cameraId = Number(cameraSelect.value);
+let frameIndex = 0;
+let selectedKey = null;
+let points = new Map();
+let savedSnapshot = "[]";
+let history = [];
+let zoom = 1;
+let panX = 0;
+let panY = 0;
+let spacePressed = false;
+let panDrag = null;
+let suppressPlacement = false;
+
+const MIN_ZOOM = 1;
+const MAX_ZOOM = 8;
+const FIT_ZOOM_EPSILON = 0.02;
+
+function pointKey(world) {
+  return world.map(Number).join(",");
+}
+
+function formatNumber(value) {
+  const number = Number(value);
+  return Number.isInteger(number) ? String(number) : String(number);
+}
+
+function formatWorld(world) {
+  return `(${world.map(formatNumber).join(", ")})`;
+}
+
+function serializedPoints() {
+  return CATALOG
+    .filter(world => points.has(pointKey(world)))
+    .map(world => ({world, image: points.get(pointKey(world))}));
+}
+
+function snapshot() {
+  return JSON.stringify(serializedPoints());
+}
+
+function isDirty() {
+  return snapshot() !== savedSnapshot;
+}
+
+function setStatus(message, kind = "") {
+  statusEl.textContent = message;
+  statusEl.className = kind;
+}
+
+function updateStatus() {
+  const count = points.size;
+  setStatus(`${count}/${CATALOG.length} points${isDirty() ? " • unsaved" : ""}`);
+}
+
+function pushHistory() {
+  history.push(snapshot());
+  if (history.length > 100) history.shift();
+}
+
+function restoreSnapshot(value) {
+  points = new Map();
+  for (const item of JSON.parse(value || "[]")) {
+    points.set(pointKey(item.world), item.image.map(Number));
+  }
+  renderAll();
+}
+
+function renderPointList() {
+  pointList.replaceChildren();
+  for (const world of CATALOG) {
+    const key = pointKey(world);
+    const image = points.get(key);
+    const row = document.createElement("button");
+    row.type = "button";
+    row.className = "point-row";
+    if (image) row.classList.add("placed");
+    if (key === selectedKey) row.classList.add("selected");
+    row.innerHTML = `
+      <span class="dot"></span>
+      <span>${formatWorld(world)}</span>
+      <span class="pixel">${image ? `${image[0].toFixed(1)}, ${image[1].toFixed(1)}` : "not set"}</span>
+    `;
+    row.addEventListener("click", () => {
+      selectedKey = key;
+      renderAll();
+    });
+    pointList.appendChild(row);
+  }
+}
+
+function resizeOverlay() {
+  const width = frameImage.offsetWidth;
+  const height = frameImage.offsetHeight;
+  overlay.style.width = `${width}px`;
+  overlay.style.height = `${height}px`;
+  applyViewTransform();
+  drawOverlay();
+}
+
+function drawOverlay() {
+  const camera = cameraById.get(cameraId);
+  overlay.replaceChildren();
+  if (!camera || frameImage.offsetWidth === 0 || frameImage.offsetHeight === 0) return;
+  overlay.setAttribute("viewBox", `0 0 ${camera.width} ${camera.height}`);
+  overlay.setAttribute("preserveAspectRatio", "none");
+
+  const namespace = "http://www.w3.org/2000/svg";
+  for (const world of CATALOG) {
+    const key = pointKey(world);
+    const image = points.get(key);
+    if (!image) continue;
+    const x = image[0];
+    const y = image[1];
+    const selected = key === selectedKey;
+
+    const crossHorizontal = document.createElementNS(namespace, "line");
+    crossHorizontal.setAttribute("x1", x - 9);
+    crossHorizontal.setAttribute("y1", y);
+    crossHorizontal.setAttribute("x2", x + 9);
+    crossHorizontal.setAttribute("y2", y);
+    crossHorizontal.setAttribute("stroke", selected ? "#ffd33d" : "#39d0d8");
+    crossHorizontal.setAttribute("stroke-width", selected ? "3" : "2");
+    crossHorizontal.setAttribute("vector-effect", "non-scaling-stroke");
+    overlay.appendChild(crossHorizontal);
+
+    const crossVertical = document.createElementNS(namespace, "line");
+    crossVertical.setAttribute("x1", x);
+    crossVertical.setAttribute("y1", y - 9);
+    crossVertical.setAttribute("x2", x);
+    crossVertical.setAttribute("y2", y + 9);
+    crossVertical.setAttribute("stroke", selected ? "#ffd33d" : "#39d0d8");
+    crossVertical.setAttribute("stroke-width", selected ? "3" : "2");
+    crossVertical.setAttribute("vector-effect", "non-scaling-stroke");
+    overlay.appendChild(crossVertical);
+
+    const label = document.createElementNS(namespace, "text");
+    label.setAttribute("x", x + 14);
+    label.setAttribute("y", y - 10);
+    label.setAttribute("fill", selected ? "#ffd33d" : "#d8f6f7");
+    label.setAttribute("stroke", "rgba(0, 0, 0, 0.9)");
+    label.setAttribute("stroke-width", "4");
+    label.setAttribute("paint-order", "stroke");
+    label.setAttribute("font-size", "22");
+    label.setAttribute("font-family", "ui-monospace, monospace");
+    label.textContent = formatWorld(world);
+    overlay.appendChild(label);
+  }
+}
+
+function applyViewTransform() {
+  if (zoom <= MIN_ZOOM + FIT_ZOOM_EPSILON) {
+    zoom = MIN_ZOOM;
+    panX = 0;
+    panY = 0;
+    imageLayer.style.transform = "translate(0px, 0px) scale(1)";
+    zoomLevel.textContent = "100%";
+    return;
+  }
+
+  constrainPan();
+  imageLayer.style.transform = `translate(${panX}px, ${panY}px) scale(${zoom})`;
+  zoomLevel.textContent = `${Math.round(zoom * 100)}%`;
+}
+
+function constrainPan() {
+  const viewerRect = viewer.getBoundingClientRect();
+  const layerRect = imageLayer.getBoundingClientRect();
+  const baseLeft = layerRect.left - viewerRect.left - panX;
+  const baseTop = layerRect.top - viewerRect.top - panY;
+  const scaledWidth = imageLayer.offsetWidth * zoom;
+  const scaledHeight = imageLayer.offsetHeight * zoom;
+  const visibleMargin = 60;
+
+  const minPanX = visibleMargin - baseLeft - scaledWidth;
+  const maxPanX = viewerRect.width - visibleMargin - baseLeft;
+  const minPanY = visibleMargin - baseTop - scaledHeight;
+  const maxPanY = viewerRect.height - visibleMargin - baseTop;
+  panX = Math.max(minPanX, Math.min(maxPanX, panX));
+  panY = Math.max(minPanY, Math.min(maxPanY, panY));
+}
+
+function resetView() {
+  zoom = 1;
+  panX = 0;
+  panY = 0;
+  applyViewTransform();
+}
+
+function setZoom(nextZoom, clientX = null, clientY = null) {
+  const clamped = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, nextZoom));
+  if (clamped <= MIN_ZOOM + FIT_ZOOM_EPSILON) {
+    resetView();
+    return;
+  }
+  if (Math.abs(clamped - zoom) < 1e-9) return;
+
+  const layerRect = imageLayer.getBoundingClientRect();
+  const anchorX = clientX === null
+    ? layerRect.left + layerRect.width / 2
+    : clientX;
+  const anchorY = clientY === null
+    ? layerRect.top + layerRect.height / 2
+    : clientY;
+  const scaleChange = clamped / zoom;
+
+  panX += (anchorX - layerRect.left) * (1 - scaleChange);
+  panY += (anchorY - layerRect.top) * (1 - scaleChange);
+  zoom = clamped;
+  applyViewTransform();
+}
+
+function renderSelection() {
+  if (!selectedKey) {
+    selectedLabel.textContent = "Choose a 3D court point.";
+    return;
+  }
+  const world = CATALOG.find(item => pointKey(item) === selectedKey);
+  const image = points.get(selectedKey);
+  selectedLabel.textContent = image
+    ? `${formatWorld(world)} at (${image[0].toFixed(1)}, ${image[1].toFixed(1)})`
+    : `${formatWorld(world)} — click the image to place`;
+}
+
+function renderAll() {
+  renderPointList();
+  renderSelection();
+  drawOverlay();
+  updateStatus();
+  document.getElementById("undo").disabled = history.length === 0;
+  document.getElementById("remove").disabled = !selectedKey || !points.has(selectedKey);
+  document.getElementById("delete-catalog").disabled = !selectedKey;
+}
+
+function applyCatalog(nextCatalog) {
+  CATALOG = nextCatalog.map(world => world.map(Number));
+  if (selectedKey && !CATALOG.some(world => pointKey(world) === selectedKey)) {
+    selectedKey = null;
+  }
+  renderAll();
+}
+
+async function refreshCurrentPoints() {
+  const response = await fetch(`/api/cameras/${cameraId}/points`);
+  const payload = await response.json();
+  if (!response.ok) throw new Error(payload.error || "Could not reload points");
+  points = new Map(payload.points.map(item => [pointKey(item.world), item.image.map(Number)]));
+  savedSnapshot = snapshot();
+  history = [];
+  renderAll();
+}
+
+function setFrame(index) {
+  const camera = cameraById.get(cameraId);
+  frameIndex = Math.max(0, Math.min(camera.frame_count - 1, Number(index)));
+  frameSlider.value = frameIndex;
+  frameNumber.textContent = frameIndex;
+  frameImage.src = `/api/cameras/${cameraId}/frames/${frameIndex}?t=${Date.now()}`;
+}
+
+async function loadCamera(nextCameraId) {
+  if (isDirty() && !window.confirm("Discard unsaved changes for this camera?")) {
+    cameraSelect.value = String(cameraId);
+    return;
+  }
+  cameraId = Number(nextCameraId);
+  const camera = cameraById.get(cameraId);
+  frameSlider.max = camera.frame_count - 1;
+  cameraMeta.textContent =
+    `${camera.width}×${camera.height}, ${camera.frame_count} frames, ${camera.fps} fps`;
+  resetView();
+  selectedKey = null;
+  history = [];
+  setStatus("Loading…");
+  const response = await fetch(`/api/cameras/${cameraId}/points`);
+  const payload = await response.json();
+  if (!response.ok) throw new Error(payload.error || "Could not load points");
+  points = new Map(payload.points.map(item => [pointKey(item.world), item.image.map(Number)]));
+  savedSnapshot = snapshot();
+  setFrame(0);
+  renderAll();
+}
+
+viewer.addEventListener("click", event => {
+  if (suppressPlacement || event.button !== 0) {
+    suppressPlacement = false;
+    return;
+  }
+  if (!selectedKey) {
+    setStatus("Select a 3D point before clicking.", "error");
+    return;
+  }
+  const camera = cameraById.get(cameraId);
+  const rect = frameImage.getBoundingClientRect();
+  if (
+    event.clientX < rect.left || event.clientX >= rect.right ||
+    event.clientY < rect.top || event.clientY >= rect.bottom
+  ) return;
+  pushHistory();
+  const x = (event.clientX - rect.left) / rect.width * camera.width;
+  const y = (event.clientY - rect.top) / rect.height * camera.height;
+  points.set(selectedKey, [x, y]);
+  renderAll();
+});
+
+viewer.addEventListener("wheel", event => {
+  event.preventDefault();
+  const factor = Math.exp(-event.deltaY * 0.0015);
+  setZoom(zoom * factor, event.clientX, event.clientY);
+}, {passive: false});
+
+viewer.addEventListener("mousedown", event => {
+  const wantsPan = event.button === 1 || event.button === 2 ||
+    (event.button === 0 && spacePressed);
+  if (!wantsPan) return;
+  if (zoom <= MIN_ZOOM + FIT_ZOOM_EPSILON) {
+    resetView();
+    return;
+  }
+  event.preventDefault();
+  panDrag = {
+    button: event.button,
+    startX: event.clientX,
+    startY: event.clientY,
+    panX,
+    panY,
+    moved: false,
+  };
+  viewer.classList.add("panning");
+});
+
+window.addEventListener("mousemove", event => {
+  if (!panDrag) return;
+  const dx = event.clientX - panDrag.startX;
+  const dy = event.clientY - panDrag.startY;
+  if (Math.abs(dx) + Math.abs(dy) > 2) panDrag.moved = true;
+  panX = panDrag.panX + dx;
+  panY = panDrag.panY + dy;
+  applyViewTransform();
+});
+
+window.addEventListener("mouseup", event => {
+  if (!panDrag) return;
+  if (panDrag.button === 0) suppressPlacement = true;
+  panDrag = null;
+  viewer.classList.remove("panning");
+});
+
+viewer.addEventListener("contextmenu", event => event.preventDefault());
+
+cameraSelect.addEventListener("change", async event => {
+  try {
+    await loadCamera(Number(event.target.value));
+  } catch (error) {
+    setStatus(error.message, "error");
+  }
+});
+frameSlider.addEventListener("input", event => setFrame(event.target.value));
+document.getElementById("previous-frame").addEventListener("click", () => setFrame(frameIndex - 1));
+document.getElementById("next-frame").addEventListener("click", () => setFrame(frameIndex + 1));
+document.getElementById("reload-frame").addEventListener("click", () => setFrame(frameIndex));
+document.getElementById("zoom-out").addEventListener("click", () => setZoom(zoom / 1.35));
+document.getElementById("zoom-in").addEventListener("click", () => setZoom(zoom * 1.35));
+document.getElementById("zoom-reset").addEventListener("click", resetView);
+catalogForm.addEventListener("submit", async event => {
+  event.preventDefault();
+  const world = [
+    Number(document.getElementById("catalog-x").value),
+    Number(document.getElementById("catalog-y").value),
+    Number(document.getElementById("catalog-z").value),
+  ];
+  setStatus("Adding catalog point…");
+  const response = await fetch("/api/catalog", {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({world}),
+  });
+  const payload = await response.json();
+  if (!response.ok) {
+    setStatus(payload.error || "Could not add point", "error");
+    return;
+  }
+  applyCatalog(payload.points);
+  selectedKey = pointKey(payload.added);
+  catalogForm.reset();
+  document.getElementById("catalog-z").value = "0";
+  renderAll();
+  setStatus(`Added ${formatWorld(payload.added)}`, "saved");
+});
+document.getElementById("delete-catalog").addEventListener("click", async () => {
+  if (!selectedKey) return;
+  const world = CATALOG.find(item => pointKey(item) === selectedKey);
+  if (!world) return;
+  if (isDirty() && !window.confirm(
+    "Deleting a catalog point reloads this camera. Discard unsaved changes?"
+  )) return;
+
+  async function remove(force) {
+    return fetch("/api/catalog", {
+      method: "DELETE",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({world, force}),
+    });
+  }
+
+  setStatus("Deleting catalog point…");
+  let response = await remove(false);
+  let payload = await response.json();
+  if (response.status === 409 && payload.cameras) {
+    const cameras = payload.cameras.map(id => `out${id}`).join(", ");
+    const confirmed = window.confirm(
+      `${formatWorld(world)} is used by ${cameras}. ` +
+      "Delete it from the catalog and all those annotation files?"
+    );
+    if (!confirmed) {
+      updateStatus();
+      return;
+    }
+    response = await remove(true);
+    payload = await response.json();
+  }
+  if (!response.ok) {
+    setStatus(payload.error || "Could not delete point", "error");
+    return;
+  }
+
+  savedSnapshot = snapshot();
+  selectedKey = null;
+  applyCatalog(payload.points);
+  try {
+    await refreshCurrentPoints();
+  } catch (error) {
+    setStatus(error.message, "error");
+    return;
+  }
+  setStatus(`Deleted ${formatWorld(payload.removed)}`, "saved");
+});
+document.getElementById("remove").addEventListener("click", () => {
+  if (!selectedKey || !points.has(selectedKey)) return;
+  pushHistory();
+  points.delete(selectedKey);
+  renderAll();
+});
+document.getElementById("undo").addEventListener("click", () => {
+  if (!history.length) return;
+  restoreSnapshot(history.pop());
+});
+document.getElementById("reset").addEventListener("click", () => {
+  if (!isDirty() || window.confirm("Discard all unsaved changes for this camera?")) {
+    history = [];
+    restoreSnapshot(savedSnapshot);
+  }
+});
+document.getElementById("save").addEventListener("click", async () => {
+  setStatus("Saving…");
+  const response = await fetch(`/api/cameras/${cameraId}/points`, {
+    method: "PUT",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({points: serializedPoints()}),
+  });
+  const payload = await response.json();
+  if (!response.ok) {
+    setStatus(payload.error || "Save failed", "error");
+    return;
+  }
+  savedSnapshot = snapshot();
+  history = [];
+  renderAll();
+  setStatus(`Saved ${payload.saved} points`, "saved");
+});
+
+frameImage.addEventListener("load", resizeOverlay);
+window.addEventListener("resize", () => {
+  applyViewTransform();
+  resizeOverlay();
+});
+window.addEventListener("keydown", event => {
+  if (event.code === "Space") {
+    spacePressed = true;
+    viewer.style.cursor = "grab";
+    event.preventDefault();
+  }
+  if (event.key === "ArrowLeft") setFrame(frameIndex - 1);
+  if (event.key === "ArrowRight") setFrame(frameIndex + 1);
+  if ((event.key === "Delete" || event.key === "Backspace") && selectedKey) {
+    event.preventDefault();
+    document.getElementById("remove").click();
+  }
+});
+window.addEventListener("keyup", event => {
+  if (event.code === "Space") {
+    spacePressed = false;
+    viewer.style.cursor = "";
+  }
+});
+window.addEventListener("beforeunload", event => {
+  if (!isDirty()) return;
+  event.preventDefault();
+  event.returnValue = "";
+});
+
+loadCamera(cameraId).catch(error => setStatus(error.message, "error"));
+</script>
+</body>
+</html>

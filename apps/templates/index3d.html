@@ -1,0 +1,598 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>3D Court Visualizer</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: #111; color: #eee; font-family: monospace;
+      height: 100vh; display: flex; flex-direction: column; overflow: hidden;
+    }
+
+    #toolbar {
+      display: flex; align-items: center; gap: 8px;
+      padding: 6px 10px; background: #1a1a1a;
+      border-bottom: 1px solid #333; flex-shrink: 0; flex-wrap: wrap;
+    }
+    #toolbar h1 { font-size: 12px; color: #888; font-weight: normal; white-space: nowrap; margin-right: 4px; }
+    .ctrl-group  { display: flex; align-items: center; gap: 5px; }
+    .ctrl-label  { font-size: 11px; color: #777; }
+
+    select {
+      font-family: monospace; font-size: 11px;
+      background: #2a2a2a; color: #ccc;
+      border: 1px solid #444; border-radius: 3px; padding: 2px 6px;
+    }
+    #frame-scrubber { width: 220px; accent-color: #4a8; }
+    #frame-number   { font-size: 11px; color: #ccc; min-width: 28px; }
+    #frame-max      { font-size: 10px; color: #555; }
+
+    button {
+      font-family: monospace; font-size: 11px; padding: 3px 9px;
+      border-radius: 3px; border: 1px solid #555; cursor: pointer;
+      background: #2a2a2a; color: #ccc; white-space: nowrap;
+    }
+    button:hover  { background: #383838; }
+    button.active { background: #1a3a1a; border-color: #4a4; color: #8f8; }
+
+    #status { font-size: 11px; color: #666; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+    #viewport-3d { flex: 1; min-height: 0; position: relative; background: #0d1520; }
+    #viewport-3d canvas { display: block; width: 100% !important; height: 100% !important; }
+
+    /* ── Loading overlay ── */
+    #loading-overlay {
+      display: none;
+      position: absolute;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.65);
+      z-index: 10;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      gap: 14px;
+      pointer-events: none;
+    }
+    #loading-overlay.visible { display: flex; }
+    #loading-msg {
+      font-size: 15px;
+      font-weight: bold;
+      color: #fff;
+      letter-spacing: 0.04em;
+    }
+    #loading-sub {
+      font-size: 11px;
+      color: #aaa;
+    }
+    /* Animated spinner */
+    #loading-spinner {
+      width: 36px; height: 36px;
+      border: 3px solid #333;
+      border-top-color: #4af;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    #statusbar {
+      height: 22px; background: #151515; border-top: 1px solid #222;
+      display: flex; align-items: center; padding: 0 10px;
+      font-size: 10px; color: #555; flex-shrink: 0; gap: 18px;
+    }
+    #legend { display: flex; gap: 14px; flex-wrap: wrap; }
+    .legend-item { display: flex; align-items: center; gap: 4px; color: #666; }
+    .legend-dot  { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+    #coords-bar  { color: #4af; }
+  </style>
+</head>
+<body>
+
+<div id="toolbar">
+  <h1>3D Court Viewer</h1>
+
+  <div class="ctrl-group">
+    <span class="ctrl-label">video:</span>
+    <select id="sel-video">
+      {% for vid in video_ids %}
+      <option value="{{ vid }}" {% if vid == current_video_id %}selected{% endif %}>{{ vid }}</option>
+      {% endfor %}
+    </select>
+  </div>
+
+  <div class="ctrl-group">
+    <span class="ctrl-label">calib:</span>
+    <select id="sel-calib">
+      <option value="ba"           {% if current_calib == 'ba'           %}selected{% endif %}>ba</option>
+      <option value="checkerboard" {% if current_calib == 'checkerboard' %}selected{% endif %}>checkerboard</option>
+    </select>
+  </div>
+
+  <div class="ctrl-group">
+    <button id="btn-play" style="min-width:44px">&#9654;</button>
+    <span class="ctrl-label">speed:</span>
+    <select id="sel-speed">
+      <option value="0.25">0.25×</option>
+      <option value="0.5">0.5×</option>
+      <option value="1" selected>1×</option>
+      <option value="2">2×</option>
+      <option value="4">4×</option>
+    </select>
+  </div>
+
+  <div class="ctrl-group">
+    <span class="ctrl-label">frame:</span>
+    <input type="range" id="frame-scrubber" min="0" max="0" value="0" step="1">
+    <span id="frame-number">—</span>
+    <span id="frame-max"></span>
+  </div>
+
+  <span style="color:#444;font-size:11px">show:</span>
+  <button id="btn-mocap"        class="active">mocap</button>
+  <button id="btn-triangulated" class="active">triangulated</button>
+  <button id="btn-cameras"      class="active">cameras</button>
+  <button id="btn-keypoints"    class="active">court pts</button>
+
+  <div id="status">Loading…</div>
+</div>
+
+<div id="viewport-3d">
+  <div id="loading-overlay">
+    <div id="loading-spinner"></div>
+    <div id="loading-msg">Loading…</div>
+    <div id="loading-sub"></div>
+  </div>
+</div>
+
+<div id="statusbar">
+  <div id="legend">
+    <div class="legend-item"><div class="legend-dot" style="background:#ffffff"></div>court</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#ff6600"></div>baskets</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#44aaff"></div>cameras</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#ffdd00"></div>mocap 3D</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#00ff88"></div>triangulated</div>
+  </div>
+  <span id="coords-bar"></span>
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three":         "https://cdn.jsdelivr.net/npm/three@0.165.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.165.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE        from "three";
+import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+import { w2t, buildCourtLines, buildCourtFloor, buildKeypointSpheres } from "/static/court.js";
+import { makeLabel }                                                    from "/static/frustum.js";
+import { SKELETON_EDGES }                                               from "/static/skeleton.js";
+
+// ── Renderer ──────────────────────────────────────────────────────────────────
+
+const container = document.getElementById("viewport-3d");
+const renderer  = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(window.devicePixelRatio);
+renderer.setClearColor(0x0d1520);
+container.appendChild(renderer.domElement);
+
+const cam3 = new THREE.PerspectiveCamera(50, 1, 0.1, 500);
+cam3.position.set(0, 28, 18);
+
+const scene    = new THREE.Scene();
+const controls = new OrbitControls(cam3, renderer.domElement);
+controls.target.set(0, 0, 0);
+controls.enableDamping = true;
+controls.dampingFactor = 0.08;
+controls.update();
+
+function resize() {
+  const w = container.clientWidth, h = container.clientHeight;
+  renderer.setSize(w, h, false);
+  cam3.aspect = w / h;
+  cam3.updateProjectionMatrix();
+}
+new ResizeObserver(resize).observe(container);
+resize();
+
+scene.add(new THREE.AmbientLight(0xffffff, 0.6));
+const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+dirLight.position.set(5, 20, 5);
+scene.add(dirLight);
+
+(function animate() {
+  requestAnimationFrame(animate);
+  controls.update();
+  renderer.render(scene, cam3);
+})();
+
+// ── Scene groups ──────────────────────────────────────────────────────────────
+
+const courtGroup  = new THREE.Group();
+const cameraGroup = new THREE.Group();
+const skelGroup   = new THREE.Group();   // contains mocapMesh + triMesh
+scene.add(courtGroup, cameraGroup, skelGroup);
+
+// ── Floor hover ───────────────────────────────────────────────────────────────
+
+const raycaster  = new THREE.Raycaster();
+const mouse      = new THREE.Vector2();
+const floorPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+renderer.domElement.addEventListener("mousemove", e => {
+  const r = renderer.domElement.getBoundingClientRect();
+  mouse.x =  (e.clientX - r.left) / r.width  * 2 - 1;
+  mouse.y = -(e.clientY - r.top)  / r.height * 2 + 1;
+  raycaster.setFromCamera(mouse, cam3);
+  const pt = new THREE.Vector3();
+  if (raycaster.ray.intersectPlane(floorPlane, pt))
+    document.getElementById("coords-bar").textContent =
+      `X=${pt.x.toFixed(2)} m  Y=${(-pt.z).toFixed(2)} m`;
+});
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+function rodriguesJS(rvec) {
+  const angle = Math.sqrt(rvec[0]**2 + rvec[1]**2 + rvec[2]**2);
+  if (angle < 1e-12) return [[1,0,0],[0,1,0],[0,0,1]];
+  const k = rvec.map(v => v / angle);
+  const c = Math.cos(angle), s = Math.sin(angle), t = 1 - c;
+  const [kx,ky,kz] = k;
+  return [
+    [t*kx*kx+c,    t*kx*ky-s*kz, t*kx*kz+s*ky],
+    [t*kx*ky+s*kz, t*ky*ky+c,    t*ky*kz-s*kx],
+    [t*kx*kz-s*ky, t*ky*kz+s*kx, t*kz*kz+c   ],
+  ];
+}
+function rtVec(R, v) {
+  return [R[0][0]*v[0]+R[1][0]*v[1]+R[2][0]*v[2],
+          R[0][1]*v[0]+R[1][1]*v[1]+R[2][1]*v[2],
+          R[0][2]*v[0]+R[1][2]*v[1]+R[2][2]*v[2]];
+}
+
+function buildCameraMarker(camData) {
+  const group = new THREE.Group();
+  const C = camData.center;
+  const dotGeo = new THREE.SphereGeometry(0.25, 8, 8);
+  group.add(new THREE.Mesh(dotGeo,
+    new THREE.MeshBasicMaterial({ color: 0x44aaff })));
+  group.children[0].position.set(...w2t(...C));
+
+  const R    = rodriguesJS(camData.rvec);
+  const d    = rtVec(R, [0, 0, 1]);
+  const tip  = [C[0]+d[0]*2, C[1]+d[1]*2, C[2]+d[2]*2];
+  const geo  = new THREE.BufferGeometry();
+  geo.setAttribute("position", new THREE.Float32BufferAttribute([...w2t(...C), ...w2t(...tip)], 3));
+  group.add(new THREE.LineSegments(geo, new THREE.LineBasicMaterial({ color: 0x44aaff })));
+  return group;
+}
+
+function buildBaskets() {
+  const group  = new THREE.Group();
+  const rimMat = new THREE.MeshBasicMaterial({ color: 0xff6600 });
+  for (const sx of [-1, 1]) {
+    const bx = sx * 12.15;
+    const rim = new THREE.Mesh(new THREE.TorusGeometry(0.228, 0.02, 8, 32), rimMat);
+    rim.rotation.x = Math.PI / 2;
+    rim.position.set(...w2t(bx, 0, 3.05));
+    group.add(rim);
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute("position", new THREE.Float32BufferAttribute([...w2t(bx,0,0),...w2t(bx,0,3.05)], 3));
+    group.add(new THREE.LineSegments(geo, new THREE.LineBasicMaterial({ color: 0x666666 })));
+  }
+  return group;
+}
+
+// ── Persistent skeleton meshes ────────────────────────────────────────────────
+// One set of persistent Line + Mesh objects per source (mocap / triangulated).
+// On each frame we just write new positions into the Float32Array and flag needsUpdate.
+// No allocation, no GC, no dispose per frame.
+
+const N_KPT   = 18;
+const N_EDGES = SKELETON_EDGES.length;
+const HIDDEN  = new THREE.Vector3(0, -1000, 0);  // park invisible joints here
+
+function makePersistentSkeleton(color) {
+  // Bones: N_EDGES line segments (2 verts each)
+  const boneArr  = new Float32Array(N_EDGES * 2 * 3);
+  const boneGeo  = new THREE.BufferGeometry();
+  const boneAttr = new THREE.BufferAttribute(boneArr, 3);
+  boneAttr.setUsage(THREE.DynamicDrawUsage);
+  boneGeo.setAttribute("position", boneAttr);
+  const boneMesh = new THREE.LineSegments(boneGeo, new THREE.LineBasicMaterial({ color }));
+
+  // Joints: N_KPT spheres (reused)
+  const jointGeo  = new THREE.SphereGeometry(0.08, 6, 6);
+  const jointMat  = new THREE.MeshBasicMaterial({ color });
+  const jointObjs = [];
+  for (let i = 0; i < N_KPT; i++) {
+    const m = new THREE.Mesh(jointGeo, jointMat);
+    m.position.copy(HIDDEN);
+    jointObjs.push(m);
+  }
+
+  const group = new THREE.Group();
+  group.add(boneMesh);
+  for (const m of jointObjs) group.add(m);
+
+  return { group, boneArr, boneAttr, jointObjs };
+}
+
+const MOCAP_COLOR = 0xffdd00;
+const TRI_COLOR   = 0x00ff88;
+
+const mocapSkel = makePersistentSkeleton(MOCAP_COLOR);
+const triSkel   = makePersistentSkeleton(TRI_COLOR);
+skelGroup.add(mocapSkel.group, triSkel.group);
+
+function updatePersistentSkeleton(skel, keypoints3d) {
+  const { boneArr, boneAttr, jointObjs } = skel;
+
+  // Joints
+  for (let i = 0; i < N_KPT; i++) {
+    const kp = keypoints3d ? keypoints3d[i] : null;
+    if (kp) {
+      const [tx, ty, tz] = w2t(kp[0], kp[1], kp[2]);
+      jointObjs[i].position.set(tx, ty, tz);
+    } else {
+      jointObjs[i].position.copy(HIDDEN);
+    }
+  }
+
+  // Bones
+  let bi = 0;
+  for (const [a, b] of SKELETON_EDGES) {
+    const ka = keypoints3d ? keypoints3d[a] : null;
+    const kb = keypoints3d ? keypoints3d[b] : null;
+    if (ka && kb) {
+      const [ax,ay,az] = w2t(ka[0],ka[1],ka[2]);
+      const [bx,by,bz] = w2t(kb[0],kb[1],kb[2]);
+      boneArr[bi*6+0]=ax; boneArr[bi*6+1]=ay; boneArr[bi*6+2]=az;
+      boneArr[bi*6+3]=bx; boneArr[bi*6+4]=by; boneArr[bi*6+5]=bz;
+    } else {
+      // Degenerate segment — park off-screen
+      for (let k=0;k<6;k++) boneArr[bi*6+k] = -1000;
+    }
+    bi++;
+  }
+  boneAttr.needsUpdate = true;
+}
+
+// ── Loading overlay ───────────────────────────────────────────────────────────
+
+function setLoading(msg, sub = "") {
+  document.getElementById("loading-msg").textContent = msg;
+  document.getElementById("loading-sub").textContent = sub;
+  document.getElementById("loading-overlay").classList.add("visible");
+  document.getElementById("status").textContent = msg + (sub ? "  " + sub : "");
+}
+function clearLoading(msg = "") {
+  document.getElementById("loading-overlay").classList.remove("visible");
+  if (msg) document.getElementById("status").textContent = msg;
+}
+
+// ── Frame cache (preloaded from server) ──────────────────────────────────────
+
+let frameCache  = {};  // fid → { mocap: [...], triangulated: [...] }
+let allFids     = [];
+let camIds      = [];
+let _switchGen  = 0;   // incremented on every switch; stale async work checks this
+
+async function preloadFrames(fids, gen) {
+  // Fetch all frames in parallel (served from server-side cache, no compute)
+  let done = 0;
+  const results = await Promise.all(
+    fids.map(fid =>
+      fetch(`/api/frame_data/${fid}`).then(r => r.json()).then(d => {
+        done++;
+        if (gen === _switchGen)
+          document.getElementById("loading-sub").textContent =
+            `${done} / ${fids.length} frames`;
+        return d;
+      })
+    )
+  );
+  if (gen !== _switchGen) return;
+  frameCache = {};
+  for (const d of results) frameCache[d.fid] = d;
+}
+
+// ── Render a frame (pure JS, no fetch) ───────────────────────────────────────
+
+function renderFrame(fid) {
+  const data = frameCache[fid];
+  if (!data) return;
+
+  const mocapKpts = data.mocap.length   ? data.mocap[0].keypoints_3d   : null;
+  const triKpts   = data.triangulated.length ? data.triangulated[0].keypoints_3d : null;
+
+  if (mocapSkel.group.visible) updatePersistentSkeleton(mocapSkel, mocapKpts);
+  if (triSkel.group.visible)   updatePersistentSkeleton(triSkel,   triKpts);
+
+  const nMocap = mocapKpts ? mocapKpts.filter(k=>k).length : 0;
+  const nTri   = triKpts   ? triKpts.filter(k=>k).length   : 0;
+  document.getElementById("status").textContent =
+    `fid ${fid}  |  mocap: ${nMocap} kpts  triangulated: ${nTri} kpts`;
+}
+
+// ── Playback ──────────────────────────────────────────────────────────────────
+
+let _playing  = false;
+let _playTimer = null;
+let _playIdx  = 0;
+
+const VIDEO_FPS = 12.0;
+function _intervalMs() { return 1000 / (VIDEO_FPS * parseFloat(document.getElementById("sel-speed").value)); }
+
+function _tick() {
+  if (!_playing || allFids.length === 0) return;
+  _playIdx = (_playIdx + 1) % allFids.length;
+  const fid = allFids[_playIdx];
+  document.getElementById("frame-scrubber").value = _playIdx;
+  document.getElementById("frame-number").textContent = String(fid);
+  renderFrame(fid);
+  _playTimer = setTimeout(_tick, _intervalMs());
+}
+
+function _startPlay() {
+  if (_playing) return;
+  _playing = true;
+  document.getElementById("btn-play").innerHTML = "&#9646;&#9646;";
+  _playIdx = parseInt(document.getElementById("frame-scrubber").value);
+  _tick();
+}
+function _stopPlay() {
+  _playing = false;
+  clearTimeout(_playTimer);
+  _playTimer = null;
+  document.getElementById("btn-play").innerHTML = "&#9654;";
+}
+
+// ── Init scene (static geometry) ─────────────────────────────────────────────
+
+async function initScene() {
+  const [calJson, courtJson] = await Promise.all([
+    fetch("/api/calibration").then(r => r.json()),
+    fetch("/api/court").then(r => r.json()),
+  ]);
+
+  camIds = Object.keys(calJson.cameras).map(Number).sort();
+
+  // Clear and rebuild static groups
+  while (courtGroup.children.length)  courtGroup.remove(courtGroup.children[0]);
+  while (cameraGroup.children.length) cameraGroup.remove(cameraGroup.children[0]);
+
+  courtGroup.add(buildCourtFloor(THREE));
+  courtGroup.add(buildCourtLines(THREE));
+  courtGroup.add(buildBaskets());
+  const kpSpheres = buildKeypointSpheres(THREE, courtJson.keypoints);
+  kpSpheres.name = "keypoint-spheres";
+  courtGroup.add(kpSpheres);
+
+  for (const [cidStr, cam] of Object.entries(calJson.cameras)) {
+    const cid = parseInt(cidStr);
+    cameraGroup.add(buildCameraMarker(cam));
+    const lbl = makeLabel(THREE, `cam_${cid}`);
+    lbl.position.set(cam.center[0], cam.center[2] + 1.5, -cam.center[1]);
+    cameraGroup.add(lbl);
+  }
+}
+
+// ── Load frames ───────────────────────────────────────────────────────────────
+
+async function loadFrames() {
+  const data = await fetch("/api/frames").then(r => r.json());
+  allFids = data.frames ?? [];
+  const scrubber = document.getElementById("frame-scrubber");
+  scrubber.max   = Math.max(0, allFids.length - 1);
+  scrubber.value = 0;
+  document.getElementById("frame-max").textContent = `/ ${allFids.length}`;
+  if (allFids.length) document.getElementById("frame-number").textContent = String(allFids[0]);
+  return allFids;
+}
+
+// ── Toggle buttons ────────────────────────────────────────────────────────────
+
+function toggleBtn(btn, onActive, onInactive) {
+  btn.classList.toggle("active");
+  (btn.classList.contains("active") ? onActive : onInactive)();
+}
+
+document.getElementById("btn-mocap").addEventListener("click", e =>
+  toggleBtn(e.currentTarget,
+    () => { mocapSkel.group.visible = true;  },
+    () => { mocapSkel.group.visible = false; }
+  )
+);
+document.getElementById("btn-triangulated").addEventListener("click", e =>
+  toggleBtn(e.currentTarget,
+    () => { triSkel.group.visible = true;  },
+    () => { triSkel.group.visible = false; }
+  )
+);
+document.getElementById("btn-cameras").addEventListener("click", e =>
+  toggleBtn(e.currentTarget,
+    () => { cameraGroup.visible = true;  },
+    () => { cameraGroup.visible = false; }
+  )
+);
+document.getElementById("btn-keypoints").addEventListener("click", e =>
+  toggleBtn(e.currentTarget,
+    () => { const kp = courtGroup.getObjectByName("keypoint-spheres"); if(kp) kp.visible=true;  },
+    () => { const kp = courtGroup.getObjectByName("keypoint-spheres"); if(kp) kp.visible=false; }
+  )
+);
+
+document.getElementById("btn-play").addEventListener("click", () =>
+  _playing ? _stopPlay() : _startPlay()
+);
+document.addEventListener("keydown", e => {
+  if (e.code === "Space" && e.target.tagName !== "INPUT" && e.target.tagName !== "SELECT") {
+    e.preventDefault();
+    _playing ? _stopPlay() : _startPlay();
+  }
+});
+document.getElementById("frame-scrubber").addEventListener("input", e => {
+  _stopPlay();
+  const idx = parseInt(e.target.value);
+  const fid = allFids[idx];
+  if (fid === undefined) return;
+  document.getElementById("frame-number").textContent = String(fid);
+  renderFrame(fid);
+});
+
+// ── Video / calib switch ──────────────────────────────────────────────────────
+
+async function switchSource() {
+  _stopPlay();
+  const gen = ++_switchGen;
+  frameCache = {};
+  updatePersistentSkeleton(mocapSkel, null);
+  updatePersistentSkeleton(triSkel,   null);
+
+  const vid   = document.getElementById("sel-video").value;
+  const calib = document.getElementById("sel-calib").value;
+  setLoading(`Switching to ${vid} / ${calib}…`, "computing on server…");
+
+  const resp = await fetch("/api/switch", {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ video_id: vid, calib_source: calib }),
+  });
+  if (gen !== _switchGen) return;
+
+  const data = await resp.json();
+  allFids = data.frames ?? [];
+  const scrubber = document.getElementById("frame-scrubber");
+  scrubber.max = Math.max(0, allFids.length - 1);
+  scrubber.value = 0;
+  document.getElementById("frame-max").textContent = `/ ${allFids.length}`;
+  setLoading("Preloading frames…", `0 / ${allFids.length}`);
+
+  await Promise.all([initScene(), preloadFrames(allFids, gen)]);
+  if (gen !== _switchGen) return;
+  clearLoading(`${vid} / ${calib}  —  ${allFids.length} frames ready`);
+  if (allFids.length) renderFrame(allFids[0]);
+}
+
+document.getElementById("sel-video").addEventListener("change", switchSource);
+document.getElementById("sel-calib").addEventListener("change", switchSource);
+
+// ── Boot ──────────────────────────────────────────────────────────────────────
+
+(async () => {
+  const gen = ++_switchGen;
+  setLoading("Initialising…", "loading calibration & court");
+  const fids = await loadFrames();
+  setLoading("Preloading frames…", `0 / ${fids.length}`);
+  await Promise.all([initScene(), preloadFrames(fids, gen)]);
+  if (gen !== _switchGen) return;
+  const vid   = document.getElementById("sel-video").value;
+  const calib = document.getElementById("sel-calib").value;
+  clearLoading(`${vid} / ${calib}  —  ${fids.length} frames ready`);
+  if (fids.length) renderFrame(fids[0]);
+})();
+</script>
+</body>
+</html>

@@ -3,4 +3,5 @@ __pycache__/
 
 data/
 log/
-
+logs/
+archive.tar

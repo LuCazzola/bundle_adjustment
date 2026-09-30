@@ -119,6 +119,12 @@
       pointer-events: none;
     }
 
+    .cell-inner {
+      position: absolute; inset: 0;
+      transform-origin: 0 0;
+      will-change: transform;
+    }
+
     .cell-label {
       position: absolute; top: 6px; left: 8px;
       font-size: 12px; color: #fff;
@@ -193,6 +199,18 @@
 <!-- ── main control bar ──────────────────────────────────────────────────── -->
 <div id="controls">
 
+  <!-- 0. video selection -->
+  <div class="ctrl-group">
+    <span class="ctrl-label">video</span>
+    <select id="sel-video">
+      {% for vid in video_ids %}
+      <option value="{{ vid }}" {% if vid == current_video_id %}selected{% endif %}>{{ vid }}</option>
+      {% endfor %}
+    </select>
+  </div>
+
+  <div class="sep"></div>
+
   <!-- 1. calib source -->
   <div class="ctrl-group">
     <span class="ctrl-label">calib</span>
@@ -229,6 +247,16 @@
 
   <div class="sep"></div>
 
+  <div class="sep"></div>
+
+  <!-- frame slider -->
+  <div class="ctrl-group">
+    <span class="ctrl-label">frame</span>
+    <input type="range" id="frame-slider" min="0" max="{{ (frame_counts.values() | list | max) - 1 }}" value="0" step="1"
+           style="width:140px; accent-color:#aaa">
+    <span id="frame-val" style="font-size:11px;color:#aaa;min-width:40px;text-align:right">0</span>
+  </div>
+
   <button id="btn-clear">clear</button>
   <button id="btn-reload" class="btn-action" title="Reload calib + frames from disk">↻ reload</button>
 
@@ -240,11 +268,13 @@
   {% for cid in cameras %}
   <div class="cell" id="cell-{{ cid }}" data-cam="{{ cid }}"
        style="aspect-ratio: {{ cam_sizes[cid]['w'] }} / {{ cam_sizes[cid]['h'] }}">
-    <img id="img-{{ cid }}" class="cell-img" src="" alt="" draggable="false"
-         onerror="this.style.display='none'; document.getElementById('novid-{{ cid }}').style.display='flex'">
-    <div id="novid-{{ cid }}" class="no-video">no video — cam {{ cid }}</div>
-    <canvas id="canvas-gt-{{ cid }}"  style="z-index:1"></canvas>
-    <canvas id="canvas-{{ cid }}"     style="z-index:2"></canvas>
+    <div class="cell-inner" id="inner-{{ cid }}">
+      <img id="img-{{ cid }}" class="cell-img" src="" alt="" draggable="false"
+           onerror="this.style.display='none'; document.getElementById('novid-{{ cid }}').style.display='flex'">
+      <div id="novid-{{ cid }}" class="no-video">no video — cam {{ cid }}</div>
+      <canvas id="canvas-gt-{{ cid }}"  style="z-index:1"></canvas>
+      <canvas id="canvas-{{ cid }}"     style="z-index:2"></canvas>
+    </div>
     <div class="cell-label">cam {{ cid }}</div>
     <div class="cam-btns">
       <button class="cam-btn" data-cam="{{ cid }}" data-layer="gt">GT</button>
@@ -258,11 +288,13 @@
 <div id="info">
   <div>
     <div id="world-coords"></div>
-    <div id="hint" style="margin-top:4px">Click: project to Z=0 · Right-click: clear</div>
+    <div id="hint" style="margin-top:4px">Click: project to Z=0 · Right-click: clear · Scroll: zoom · Middle-drag: pan · Double-click: reset zoom</div>
   </div>
   <div id="legend">
-    <div class="legend-item"><div class="legend-dot" style="background:#f0c040"></div>GT annotations</div>
-    <div class="legend-item"><div class="legend-dot" style="background:#00e5ff"></div>reprojection + error</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#f0c040"></div>GT — court annotation</div>
+    {% if has_mocap %}<div class="legend-item"><div class="legend-dot" style="background:#ffffff;border:1px solid #555"></div>GT — mocap COCO keypoint</div>{% endif %}
+    <div class="legend-item"><div class="legend-dot" style="background:#00e5ff"></div>reproj — court 3D→2D</div>
+    {% if has_mocap %}<div class="legend-item"><div class="legend-dot" style="background:#ff5722"></div>reproj — mocap 3D→2D</div>{% endif %}
     <div class="legend-item"><div class="legend-dot" style="background:#00ff55"></div>clicked point</div>
     <div class="legend-item"><div class="legend-dot" style="background:#ff3333"></div>projected point</div>
     <div class="legend-item"><div class="legend-dot" style="background:#ffdd00"></div>pending ray</div>
@@ -286,16 +318,26 @@
 
 <script>
 // Per-camera image dimensions: { cam_id: {w, h} }
-const CAM_SIZES = {{ cam_sizes | tojson }};
-const CAMERAS   = {{ cameras | tojson }};
-const HAS_BA    = {{ has_ba | tojson }};
+const CAM_SIZES     = {{ cam_sizes | tojson }};
+const CAMERAS       = {{ cameras | tojson }};
+const HAS_BA        = {{ has_ba | tojson }};
+const HAS_MOCAP     = {{ has_mocap | tojson }};
+// Per-camera total frame count for clamping the slider per camera.
+const FRAME_COUNTS  = {{ frame_counts | tojson }};
 
 // All overlay x/y values are normalised [0,1] relative to each camera's own resolution.
 let OVERLAYS = {{ overlays | tojson }};
 
+// Mocap overlays keyed by calib source, then by "fid_cid" string.
+// { calib: { "fid_cid": [{x,y,label,err,world,gt_x,gt_y}, ...] } }
+let MOCAP_OVERLAYS = {{ mocap_overlays | tojson }};
+
 // ── current selections ────────────────────────────────────────────────────────
-let currentCalib   = "checkerboard";
-let currentDisplay = "original";
+let currentCalib    = "checkerboard";
+let currentDisplay  = "original";
+let currentFrameIdx = 0;   // 0-based video frame index
+// COCO frame IDs are 1-based and match video frames 1..N directly.
+function currentMocapFrame() { return currentFrameIdx + 1; }
 
 // ── visibility state ──────────────────────────────────────────────────────────
 const vis = {};
@@ -332,9 +374,35 @@ function normToCSS(nx, ny, canvas) {
   return [nx * canvas.width, ny * canvas.height];
 }
 
-// Convert a CSS-pixel click (relative to cell) to normalised [0,1].
+// ── per-cell zoom state ───────────────────────────────────────────────────────
+const zoomState = {};  // cid -> { z, px, py }
+const MIN_ZOOM = 1, MAX_ZOOM = 16;
+
+function getZoom(cid) {
+  if (!zoomState[cid]) zoomState[cid] = { z: 1, px: 0, py: 0 };
+  return zoomState[cid];
+}
+
+function applyZoom(cid) {
+  const { z, px, py } = getZoom(cid);
+  const inner = document.getElementById(`inner-${cid}`);
+  inner.style.transform = z === 1 ? "" : `scale(${z}) translate(${px}px, ${py}px)`;
+}
+
+function resetZoom(cid) {
+  zoomState[cid] = { z: 1, px: 0, py: 0 };
+  applyZoom(cid);
+  redrawOverlay(cid);
+}
+
+// Convert a CSS-pixel click (relative to cell top-left, accounting for zoom) to normalised [0,1].
 function cssToNorm(cx, cy, cell) {
-  return [cx / cell.offsetWidth, cy / cell.offsetHeight];
+  const cid = parseInt(cell.dataset.cam);
+  const { z, px, py } = getZoom(cid);
+  // inner is scaled by z with translate(px,py), so content px = (cx/z) - px
+  const ix = cx / z - px;
+  const iy = cy / z - py;
+  return [ix / cell.offsetWidth, iy / cell.offsetHeight];
 }
 
 // ── drawing ───────────────────────────────────────────────────────────────────
@@ -361,17 +429,43 @@ function getPts(layer, cid) {
   return OVERLAYS[currentCalib]?.[String(cid)]?.[layer][currentDisplay] || [];
 }
 
+// ── mocap overlay data accessor ───────────────────────────────────────────────
+function getMocapPts(cid) {
+  return MOCAP_OVERLAYS[currentCalib]?.[`${currentMocapFrame()}_${cid}`] || [];
+}
+
 // ── overlay redraw ────────────────────────────────────────────────────────────
 function redrawOverlay(cid) {
   const ctx = getGtCtx(cid);
   ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
-  if (vis[cid].gt)
+
+  const isRect = currentDisplay === "rectified";
+
+  // court GT + mocap COCO annotation (both are "measured" observations)
+  if (vis[cid].gt) {
     for (const pt of getPts("gt", cid))
-      drawAnnotatedDot(ctx, pt.x, pt.y, "#f0c040", pt.label);
-  if (vis[cid].reproj)
+      drawAnnotatedDot(ctx, pt.x, pt.y, "#f0c040", pt.label);            // yellow — court annotation
+    if (HAS_MOCAP)
+      for (const pt of getMocapPts(cid)) {
+        const gx = isRect ? pt.gt_rx : pt.gt_x;
+        const gy = isRect ? pt.gt_ry : pt.gt_y;
+        drawAnnotatedDot(ctx, gx, gy, "#ffffff", pt.label, 3);           // white — mocap COCO annotation
+      }
+  }
+
+  // court reproj + mocap 3D→2D projection (both are model predictions)
+  if (vis[cid].reproj) {
     for (const pt of getPts("reproj", cid))
-      drawAnnotatedDot(ctx, pt.x, pt.y, "#00e5ff",
+      drawAnnotatedDot(ctx, pt.x, pt.y, "#00e5ff",                        // cyan — court reproj
         pt.err !== undefined ? `${pt.label} ${pt.err}px` : pt.label);
+    if (HAS_MOCAP)
+      for (const pt of getMocapPts(cid)) {
+        if (pt.x === undefined) continue;                                  // no 3-D data for this video
+        const px = isRect ? pt.rx : pt.x;
+        const py = isRect ? pt.ry : pt.y;
+        drawAnnotatedDot(ctx, px, py, "#ff5722", `${pt.err}px`, 4);      // red-orange — mocap 3D→2D
+      }
+  }
 }
 
 function redrawAllOverlays() { for (const cid of CAMERAS) redrawOverlay(cid); }
@@ -450,6 +544,37 @@ function toggleLayerAll(layer) {
   syncButtons();
 }
 
+// ── video switcher ────────────────────────────────────────────────────────────
+async function switchVideo() {
+  const videoId = document.getElementById("sel-video").value;
+  setStatus("switching…");
+  try {
+    const resp = await fetch("/switch", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ video_id: videoId }),
+    });
+    const data = await resp.json();
+    OVERLAYS       = data.overlays;
+    MOCAP_OVERLAYS = data.mocap_overlays || {};
+    const maxFrames = Math.max(...Object.values(data.frame_counts));
+    const slider = document.getElementById("frame-slider");
+    slider.max = maxFrames - 1;
+    currentFrameIdx = 0;
+    slider.value = 0;
+    document.getElementById("frame-val").textContent = "0";
+    clearAllInteraction();
+    redrawAllOverlays();
+    buildReprojTable();
+    loadFrames(Date.now());
+    setStatus(`video: ${data.video_id}`);
+  } catch (err) {
+    setStatus(`Switch error: ${err}`);
+  }
+}
+
+document.getElementById("sel-video").addEventListener("change", switchVideo);
+
 // ── calib / display selectors ─────────────────────────────────────────────────
 function applySelections() {
   currentCalib   = document.getElementById("sel-calib").value;
@@ -464,7 +589,10 @@ document.getElementById("sel-display").addEventListener("change", applySelection
 
 // ── frame loading ─────────────────────────────────────────────────────────────
 function frameUrl(cid, cacheBust = "") {
-  const url = `/frame/${currentCalib}/${currentDisplay}/${cid}`;
+  // Clamp per-camera: some cameras may have fewer frames than the slider max.
+  const maxIdx = (FRAME_COUNTS[String(cid)] ?? 1) - 1;
+  const idx    = Math.min(currentFrameIdx, maxIdx);
+  const url    = `/frame/${currentCalib}/${currentDisplay}/${cid}/${idx}`;
   return cacheBust ? url + `?t=${cacheBust}` : url;
 }
 
@@ -591,17 +719,99 @@ async function fetchJSON(url, body) {
 }
 
 // ── event wiring ──────────────────────────────────────────────────────────────
+// ── zoom + pan wiring ─────────────────────────────────────────────────────────
+const _drag = {};  // cid -> { active, startX, startY, startPx, startPy }
+
 document.querySelectorAll(".cell").forEach(cell => {
+  const cid = parseInt(cell.dataset.cam);
+
+  // scroll to zoom, centred on cursor
+  cell.addEventListener("wheel", e => {
+    e.preventDefault();
+    const rect = cell.getBoundingClientRect();
+    const mx = e.clientX - rect.left;  // cursor x relative to cell
+    const my = e.clientY - rect.top;
+    const s = getZoom(cid);
+    const factor = e.deltaY < 0 ? 1.15 : 1 / 1.15;
+    const newZ = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, s.z * factor));
+    // keep the point under the cursor fixed:
+    //   mx = newZ * (cell.offsetWidth  * oldNx + s.px)  → solve for new px
+    //   where oldNx = mx/s.z - s.px  (in content px before current zoom)
+    const cx = mx / s.z - s.px;  // content-space x under cursor
+    const cy = my / s.z - s.py;
+    s.px = mx / newZ - cx;
+    s.py = my / newZ - cy;
+    s.z  = newZ;
+    // clamp pan so image never leaves the viewport
+    clampPan(cid, cell);
+    applyZoom(cid);
+    redrawOverlay(cid);
+  }, { passive: false });
+
+  // middle-button drag to pan
+  cell.addEventListener("mousedown", e => {
+    if (e.button !== 1) return;  // middle button only
+    e.preventDefault();          // prevent browser scroll/autoscroll
+    const s = getZoom(cid);
+    _drag[cid] = { active: true, startX: e.clientX, startY: e.clientY, startPx: s.px, startPy: s.py };
+    cell.style.cursor = "grabbing";
+  });
+
   cell.addEventListener("click", async e => {
     if (e.target.closest(".cam-btns")) return;
     const rect  = cell.getBoundingClientRect();
-    const camId = parseInt(cell.dataset.cam);
     const [nx, ny] = cssToNorm(e.clientX - rect.left, e.clientY - rect.top, cell);
-    if (mode === "z0") await handleZ0Click(camId, nx, ny);
-    else               await handleTriClick(camId, nx, ny);
+    if (mode === "z0") await handleZ0Click(cid, nx, ny);
+    else               await handleTriClick(cid, nx, ny);
   });
+
+  cell.addEventListener("dblclick", e => {
+    if (e.target.closest(".cam-btns")) return;
+    resetZoom(cid);
+  });
+
   cell.addEventListener("contextmenu", e => { e.preventDefault(); clearAllInteraction(); });
 });
+
+document.addEventListener("mousemove", e => {
+  for (const [cidStr, drag] of Object.entries(_drag)) {
+    if (!drag?.active) continue;
+    const cid  = parseInt(cidStr);
+    const cell = document.getElementById(`cell-${cid}`);
+    const s    = getZoom(cid);
+    const dx   = (e.clientX - drag.startX) / s.z;
+    const dy   = (e.clientY - drag.startY) / s.z;
+    s.px = drag.startPx + dx;
+    s.py = drag.startPy + dy;
+    clampPan(cid, cell);
+    applyZoom(cid);
+    redrawOverlay(cid);
+  }
+});
+
+document.addEventListener("mouseup", e => {
+  if (e.button !== 1) return;
+  for (const [cidStr, drag] of Object.entries(_drag)) {
+    if (!drag?.active) continue;
+    const cid  = parseInt(cidStr);
+    const cell = document.getElementById(`cell-${cid}`);
+    _drag[cid] = null;
+    cell.style.cursor = "crosshair";
+  }
+});
+
+function clampPan(cid, cell) {
+  const s = getZoom(cid);
+  if (s.z <= 1) { s.px = 0; s.py = 0; return; }
+  const w = cell.offsetWidth, h = cell.offsetHeight;
+  // content in cell-space spans [px*z, px*z + w*z]; clamp so it covers [0,w]
+  const maxPx =  0;
+  const minPx = -(s.z - 1) * w / s.z;
+  const maxPy =  0;
+  const minPy = -(s.z - 1) * h / s.z;
+  s.px = Math.min(maxPx, Math.max(minPx, s.px));
+  s.py = Math.min(maxPy, Math.max(minPy, s.py));
+}
 
 document.querySelectorAll(".cam-btn").forEach(btn => {
   btn.addEventListener("click", e => {
@@ -612,6 +822,18 @@ document.querySelectorAll(".cam-btn").forEach(btn => {
 
 document.getElementById("btn-gt-all").addEventListener("click",  () => toggleLayerAll("gt"));
 document.getElementById("btn-rp-all").addEventListener("click",  () => toggleLayerAll("reproj"));
+
+// ── frame slider ──────────────────────────────────────────────────────────────
+{
+  const slider  = document.getElementById("frame-slider");
+  const valSpan = document.getElementById("frame-val");
+  slider.addEventListener("input", () => {
+    currentFrameIdx = parseInt(slider.value);
+    valSpan.textContent = currentFrameIdx;
+    loadFrames();
+    redrawAllOverlays();
+  });
+}
 document.getElementById("btn-clear").addEventListener("click",   clearAllInteraction);
 
 // ── reload ────────────────────────────────────────────────────────────────────
@@ -624,6 +846,10 @@ document.getElementById("btn-reload").addEventListener("click", async () => {
     const resp = await fetch("/reload");
     const data = await resp.json();
     OVERLAYS = data.overlays;
+    if (data.mocap_overlays) MOCAP_OVERLAYS = data.mocap_overlays;
+    currentFrameIdx = 0;
+    document.getElementById("frame-slider").value = 0;
+    document.getElementById("frame-val").textContent = "0";
     redrawAllOverlays();
     buildReprojTable();
     loadFrames(Date.now());
